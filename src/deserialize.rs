@@ -309,16 +309,42 @@ impl<S> Deserialize<ElabStrategy> for S {
 
 fn read_attr_ext<T: io::Read>(s: &Deserializer, d: &mut T, n: Name) -> io::Result<AttrData> {
     match to_simple_name(&n) {
-        Some("reducibility") => Ok(AttrData::Reducibility(().read(d)?)),
         Some("_refl_lemma") => Ok(AttrData::Basic),
-        Some("instance") => Ok(AttrData::Basic),
         Some("simp") => Ok(AttrData::Basic),
         Some("wrapper_eq") => Ok(AttrData::Basic),
         Some("congr") => Ok(AttrData::Basic),
-        Some("inline") => Ok(AttrData::Basic),
         Some("elab_strategy") => Ok(AttrData::ElabStrategy(s.read(d)?)),
-        Some("derive") => Ok(AttrData::User(s.read(d)?)),
-        _ => unimplemented!("unknown attr {}", n)
+        Some("elab_with_expected_type") => Ok(AttrData::Basic),
+        Some("elab_as_eliminator") => Ok(AttrData::Basic),
+        Some("elab_simple") => Ok(AttrData::Basic),
+        Some("parsing_only") => Ok(AttrData::Basic),
+        Some("pp_using_anonymous_constructor") => Ok(AttrData::Basic),
+        Some("user_command") => Ok(AttrData::Basic),
+        Some("user_notation") => Ok(AttrData::Basic),
+        Some("user_attribute") => Ok(AttrData::Basic),
+        Some("algebra") => Ok(AttrData::Basic),
+        Some("class") => Ok(AttrData::Basic),
+        Some("instance") => Ok(AttrData::Basic),
+        Some("inline") => Ok(AttrData::Basic),
+        Some("inverse") => Ok(AttrData::Basic),
+        Some("pattern") => Ok(AttrData::Basic),
+        Some("reducibility") => Ok(AttrData::Reducibility(().read(d)?)),
+        Some("reducible") => Ok(AttrData::Basic),
+        Some("semireducible") => Ok(AttrData::Basic),
+        Some("irreducible") => Ok(AttrData::Basic),
+        Some("refl") => Ok(AttrData::Basic),
+        Some("symm") => Ok(AttrData::Basic),
+        Some("trans") => Ok(AttrData::Basic),
+        Some("subst") => Ok(AttrData::Basic),
+        Some("intro") => Ok(AttrData::Intro{eager: ().read(d)?}),
+        Some("hole_command") => Ok(AttrData::Basic),
+        Some("no_inst_pattern") => Ok(AttrData::Basic),
+        Some("vm_monitor") => Ok(AttrData::Basic),
+        Some("unify") => Ok(AttrData::Basic),
+        Some("recursor") => Ok(AttrData::Indices(().read(d)?)),
+        _ =>
+            if n == mk_name(&["_simp", "sizeof"]) { Ok(AttrData::Basic) }
+            else { Ok(AttrData::User(s.read(d)?)) }
     }
 }
 

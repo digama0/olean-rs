@@ -19,6 +19,13 @@ pub fn to_simple_name(n: &Name2) -> Option<&str> {
     } else {None}
 }
 
+pub fn mk_name(ns: &[&str]) -> Name {
+    Rc::new(match ns.split_last() {
+        None => Name2::Anon,
+        Some((&s, ref ns)) => Name2::Str(mk_name(ns), String::from(s))
+    })
+}
+
 impl fmt::Display for Name2 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -125,6 +132,8 @@ pub enum ElabStrategy { Simple, WithExpectedType, AsEliminator }
     Basic,
     Reducibility(ReducibleStatus),
     ElabStrategy(ElabStrategy),
+    Intro{eager: bool},
+    Indices(Vec<u32>),
     User(Expr)
 }
 

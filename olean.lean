@@ -452,6 +452,8 @@ meta inductive attr_data : Type
 | basic : attr_data
 | reducibility : reducible_status → attr_data
 | elab_strategy : elab_strategy → attr_data
+| intro (eager : bool) : attr_data
+| indices (idxs : list unsigned) : attr_data
 | user : expr' → attr_data
 
 meta structure attr_record :=
@@ -464,6 +466,8 @@ meta instance : has_to_format attr_record :=
   | ⟨decl, some attr_data.basic⟩ := to_fmt decl
   | ⟨decl, some (attr_data.reducibility r)⟩ := br [to_fmt decl, to_fmt r]
   | ⟨decl, some (attr_data.elab_strategy s)⟩ := br [to_fmt decl, to_fmt s]
+  | ⟨decl, some (attr_data.intro b)⟩ := br [to_fmt decl, to_fmt b]
+  | ⟨decl, some (attr_data.indices ix)⟩ := br [to_fmt decl, to_fmt ix]
   | ⟨decl, some (attr_data.user e)⟩ := br [to_fmt decl, to_fmt e]
   end⟩
 
@@ -476,17 +480,42 @@ meta instance : has_to_format attr_entry :=
 ⟨λ ⟨a, p, r⟩, br [to_fmt a, to_fmt p, to_fmt r]⟩
 
 meta def read_attr_ext : name → deserializer attr_data
-| `reducibility := attr_data.reducibility <$> view
 | `_refl_lemma := return attr_data.basic
-| `instance := return attr_data.basic
 | `simp := return attr_data.basic
 | `wrapper_eq := return attr_data.basic
 | `congr := return attr_data.basic
-| `inline := return attr_data.basic
 | `elab_strategy := attr_data.elab_strategy <$> view
-| `derive := attr_data.user <$> view
-| n := corrupted ("unsupported attr " ++ to_string n)
---| n := attr_data.user <$> view
+| `elab_with_expected_type := return attr_data.basic
+| `elab_as_eliminator := return attr_data.basic
+| `elab_simple := return attr_data.basic
+| `parsing_only := return attr_data.basic
+| `pp_using_anonymous_constructor := return attr_data.basic
+| `user_command := return attr_data.basic
+| `user_notation := return attr_data.basic
+| `user_attribute := return attr_data.basic
+| `algebra := return attr_data.basic
+| `class := return attr_data.basic
+| `instance := return attr_data.basic
+| `inline := return attr_data.basic
+| `inverse := return attr_data.basic
+| `pattern := return attr_data.basic
+| `reducibility := attr_data.reducibility <$> view
+| `reducible := return attr_data.basic
+| `semireducible := return attr_data.basic
+| `irreducible := return attr_data.basic
+| `refl := return attr_data.basic
+| `symm := return attr_data.basic
+| `trans := return attr_data.basic
+| `subst := return attr_data.basic
+| `intro := attr_data.intro <$> view
+| `hole_command := return attr_data.basic
+| `no_inst_pattern := return attr_data.basic
+| `vm_monitor := return attr_data.basic
+| `unify := return attr_data.basic
+| `recursor := attr_data.indices <$> view
+| `_simp.sizeof := return attr_data.basic
+| n := attr_data.user <$> view
+-- | n := corrupted ("unsupported attr " ++ to_string n)
 
 meta instance : readable attr_entry :=
 ⟨do attr ← view,
