@@ -78,18 +78,58 @@ pub type Expr = Rc<Expr2>;
     Macro(MacroDef, Vec<Expr>)
 }
 
+#[derive(Debug)] pub struct EquationsHeader {
+    pub num_fns: u32,
+    pub is_private: bool,
+    pub is_meta: bool,
+    pub is_ncomp: bool,
+    pub is_lemma: bool,
+    pub is_aux_lemmas: bool,
+    pub prev_errors: bool,
+    pub gen_code: bool,
+    pub fn_names: Vec<Name>,
+    pub fn_actual_names: Vec<Name>
+}
+
 #[derive(Debug)] pub enum MacroDef {
     Prenum(BigInt),
     StructureInstance {struct_: Name, catchall: bool, fields: Vec<Name>},
-    ExprQuote{val: Expr, reflected: bool},
+    FieldNotation(Name, u32),
     Annot(Name),
+    Choice,
+    RecFn(Name),
+    Proj {
+        i_name: Name, c_name: Name, proj_name: Name,
+        idx: u32, ps: Vec<Name>, ty: Expr, val: Expr },
+    Equations(EquationsHeader),
+    Equation{ignore_if_unused: bool},
+    NoEquation,
+    EquationsResult,
+    AsPattern,
+    ExprQuote{val: Expr, reflected: bool},
+    Sorry{synth: bool},
+    String(String),
+    ACApp,
+    PermAC,
+    TypedExpr,
 }
 
 pub fn check_macro(m: &MacroDef, args: &Vec<Expr>) -> bool {
     match m {
         MacroDef::StructureInstance {fields, ..} => args.len() >= fields.len(),
-        MacroDef::ExprQuote{..} => args.len() == 0,
+        MacroDef::FieldNotation{..} => args.len() == 1,
         MacroDef::Annot{..} => args.len() == 1,
+        MacroDef::Choice => args.len() > 1,
+        MacroDef::RecFn{..} => args.len() == 1,
+        MacroDef::Proj{..} => args.len() == 1,
+        MacroDef::Equation{..} => args.len() == 2,
+        MacroDef::NoEquation => args.len() == 0,
+        MacroDef::AsPattern => args.len() == 2,
+        MacroDef::ExprQuote{..} => args.len() == 0,
+        MacroDef::Sorry{..} => args.len() == 1,
+        MacroDef::String{..} => args.len() == 0,
+        MacroDef::PermAC => args.len() == 4,
+        MacroDef::TypedExpr => args.len() == 2,
         _ => true
     }
 }

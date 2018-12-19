@@ -213,14 +213,46 @@ impl Deserialize<Level> for Deserializer {
     }
 }
 
+impl Deserialize<EquationsHeader> for Deserializer {
+    fn read<T: io::Read>(&self, d: &mut T) -> io::Result<EquationsHeader> {
+        Ok(EquationsHeader {
+            num_fns: self.read(d)?,
+            is_private: self.read(d)?,
+            is_meta: self.read(d)?,
+            is_ncomp: self.read(d)?,
+            is_lemma: self.read(d)?,
+            is_aux_lemmas: self.read(d)?,
+            prev_errors: self.read(d)?,
+            gen_code: self.read(d)?,
+            fn_names: self.read(d)?,
+            fn_actual_names: self.read(d)? })
+    }
+}
+
 fn read_macro<T: io::Read>(s: &Deserializer, d: &mut T, args: Vec<Expr>) -> io::Result<Expr> {
     let k: String = s.read(d)?;
     let m = match &*k {
-        "prenum" => MacroDef::Prenum(s.read(d)?),
+        "Prenum" => MacroDef::Prenum(s.read(d)?),
         "STI" => MacroDef::StructureInstance {
             struct_: s.read(d)?, catchall: s.read(d)?, fields: s.read(d)? },
-        "Quote" => MacroDef::ExprQuote { val: s.read(d)?, reflected: s.read(d)? },
+        "fieldN" => MacroDef::FieldNotation(s.read(d)?, s.read(d)?),
         "Annot" => MacroDef::Annot(s.read(d)?),
+        "Choice" => MacroDef::Choice,
+        "RecFn" => MacroDef::RecFn(s.read(d)?),
+        "Proj" => MacroDef::Proj {
+            i_name: s.read(d)?, c_name: s.read(d)?, proj_name: s.read(d)?,
+            idx: s.read(d)?, ps: s.read(d)?, ty: s.read(d)?, val: s.read(d)? },
+        "Eqns" => MacroDef::Equations(s.read(d)?),
+        "Eqn" => MacroDef::Equation { ignore_if_unused: s.read(d)? },
+        "NEqn" => MacroDef::NoEquation,
+        "EqnR" => MacroDef::EquationsResult,
+        "AsPat" => MacroDef::AsPattern,
+        "Quote" => MacroDef::ExprQuote { val: s.read(d)?, reflected: s.read(d)? },
+        "Sorry" => MacroDef::Sorry { synth: s.read(d)? },
+        "Str" => MacroDef::String(s.read(d)?),
+        "ACApp" => MacroDef::ACApp,
+        "PermAC" => MacroDef::PermAC,
+        "TyE" => MacroDef::TypedExpr,
         _ => unimplemented!("unknown macro {}", k)
     };
     guard(check_macro(&m, &args), "bad macro args")?;
@@ -629,7 +661,7 @@ pub fn read_olean_modifications(mut d: &[u8]) -> io::Result<Vec<Modification>> {
             "no_conf" => Modification::NoConf(ds.read(&mut d)?),
             "doc" => Modification::Doc(ds.read(&mut d)?, ds.read(&mut d)?),
             "ncomp" => Modification::Noncomputable(ds.read(&mut d)?),
-            "Proj" => Modification::Proj(ds.read(&mut d)?, ds.read(&mut d)?),
+            "proj" => Modification::Proj(ds.read(&mut d)?, ds.read(&mut d)?),
             "decl_trace" => Modification::DeclTrace(ds.read(&mut d)?),
             "USR_CMD" => Modification::UserCommand(ds.read(&mut d)?),
             "USR_NOTATION" => Modification::UserNotation(ds.read(&mut d)?),

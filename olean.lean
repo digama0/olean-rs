@@ -1,12 +1,38 @@
 import system.io
 open io
 
+structure equations_header :=
+(num_fns : unsigned)
+(is_private : bool)
+(is_meta : bool)
+(is_ncomp : bool)
+(is_lemma : bool)
+(is_aux_lemmas : bool)
+(prev_errors : bool)
+(gen_code : bool)
+(fn_names : list name)
+(fn_actual_names : list name)
+
 meta mutual inductive macro_def', expr'
 with macro_def' : Type
 | prenum (n : ℤ)
 | struct_inst (struct : name) (catchall : bool) (fields : list name)
-| expr_quote (val : expr') (reflected : bool)
+| field_notation (name : name) (idx : unsigned)
 | annot (name : name)
+| choice
+| rec_fn (name : name)
+| proj (i c proj : name) (idx : unsigned) (ps : list name) (ty val : expr')
+| equations (header : equations_header)
+| equation (ignore_if_unused : bool)
+| no_equation
+| equations_result
+| as_pattern
+| expr_quote (val : expr') (reflected : bool)
+| sorry_ (synth : bool)
+| string (s : string)
+| ac_app
+| perm_ac
+| typed_expr
 
 with expr' : Type
 | var      {} : nat → expr'
@@ -28,6 +54,11 @@ private meta def br : list format → format
   format.group (format.nest 1 $ format.join $
     list.intersperse ("," ++ format.line) $ xs.map to_fmt) ++ to_fmt "⟩"
 
+meta instance : has_to_format equations_header :=
+⟨λ ⟨e1,e2,e3,e4,e5,e6,e7,e8,e9,e10⟩, br [
+  to_fmt e1, to_fmt e2, to_fmt e3, to_fmt e4, to_fmt e5,
+  to_fmt e6, to_fmt e7, to_fmt e8, to_fmt e9, to_fmt e10]⟩
+
 section
 open macro_def' expr'
 
@@ -35,8 +66,23 @@ meta mutual def macro_def'.to_fmt, expr'.to_fmt
 with macro_def'.to_fmt : macro_def' → format
 | (prenum n) := ls ["prenum", to_string n]
 | (struct_inst n c f) := ls ["struct_inst", to_fmt n, to_fmt c, to_fmt f]
-| (expr_quote v r) := ls ["expr_quote", v.to_fmt, to_fmt r]
+| (field_notation n i) := ls ["field_notation", to_fmt n, to_fmt i]
 | (annot n) := ls ["annot", to_fmt n]
+| choice := "choice"
+| (rec_fn n) := ls ["rec_fn", to_fmt n]
+| (proj i c pj ix ps ty v) := ls ["proj", to_fmt i, to_fmt c,
+  to_fmt pj, to_fmt ix, to_fmt ps, ty.to_fmt, v.to_fmt]
+| (equations h) := ls ["equations", to_fmt h]
+| (equation i) := ls ["equation", to_fmt i]
+| no_equation := "no_equation"
+| equations_result := "equations_result"
+| as_pattern := "as_pattern"
+| (expr_quote v r) := ls ["expr_quote", v.to_fmt, to_fmt r]
+| (sorry_ s) := ls ["sorry", to_fmt s]
+| (string s) := ls ["string", to_fmt s]
+| ac_app := "ac_app"
+| perm_ac := "perm_ac"
+| typed_expr := "typed_expr"
 
 with expr'.to_fmt : expr' → format
 | (var n) := p ["var", to_fmt n]
@@ -228,17 +274,45 @@ meta instance : readable binder_info :=
   if c.test_bit 3 then binder_info.aux_decl else
   binder_info.default⟩
 
+meta instance : readable equations_header :=
+⟨equations_header.mk <$> view <*> view <*> view <*> view <*>
+  view <*> view <*> view <*> view <*> view <*> view⟩
+
 meta def macro_def'.check : macro_def' → list expr' → bool
 | (macro_def'.struct_inst _ _ fs) args := fs.length ≤ args.length
-| (macro_def'.expr_quote _ _) args := args.length = 0
 | (macro_def'.annot _) args := args.length = 1
+| macro_def'.choice args := args.length > 1
+| (macro_def'.rec_fn _) args := args.length = 1
+| (macro_def'.proj _ _ _ _ _ _ _) args := args.length = 1
+| (macro_def'.equation _) args := args.length = 2
+| macro_def'.no_equation args := args.length = 0
+| macro_def'.as_pattern args := args.length = 2
+| (macro_def'.expr_quote _ _) args := args.length = 0
+| (macro_def'.sorry_ _) args := args.length = 1
+| (macro_def'.string _) args := args.length = 0
+| macro_def'.perm_ac args := args.length = 4
+| macro_def'.typed_expr args := args.length = 2
 | _ args := tt
 
 meta def read_macro1 [readable expr'] (args : list expr') : string → deserializer macro_def'
-| "prenum" := macro_def'.prenum <$> view
+| "Prenum" := macro_def'.prenum <$> view
 | "STI" := macro_def'.struct_inst <$> view <*> view <*> view
-| "Quote" := macro_def'.expr_quote <$> view <*> view
+| "fieldN" := macro_def'.field_notation <$> view <*> view
 | "Annot" := macro_def'.annot <$> view
+| "Choice" := return macro_def'.choice
+| "RecFn" := macro_def'.rec_fn <$> view
+| "Proj" := macro_def'.proj <$> view <*> view <*> view <*> view <*> view <*> view <*> view
+| "Eqns" := macro_def'.equations <$> view
+| "Eqn" := macro_def'.equation <$> view
+| "NEqn" := return macro_def'.no_equation
+| "EqnR" := return macro_def'.equations_result
+| "AsPat" := return macro_def'.as_pattern
+| "Quote" := macro_def'.expr_quote <$> view <*> view
+| "Sorry" := macro_def'.sorry_ <$> view
+| "Str" := macro_def'.string <$> view
+| "ACApp" := return macro_def'.ac_app
+| "PermAC" := return macro_def'.perm_ac
+| "TyE" := return macro_def'.typed_expr
 | m := corrupted ("unknown macro " ++ m)
 
 meta instance expr'.readable : readable expr' :=
