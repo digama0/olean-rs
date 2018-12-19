@@ -27,20 +27,15 @@ trait Deserialize<A: Sized> {
 
 impl<S> Deserialize<u8> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<u8> {
-        let c = d.read_u8()?;
-        println!("read {}: u8", c);
-        Ok(c)
+        d.read_u8()
     }
 }
 
 impl<S> Deserialize<u32> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<u32> {
         let x: u8 = ().read(d)?;
-        let c =
-            if x < 255 { x.into() }
-            else { d.read_u32::<BigEndian>()? };
-        println!("read {}: u32", c);
-        Ok(c)
+        if x < 255 { Ok(x.into()) }
+        else { d.read_u32::<BigEndian>() }
     }
 }
 
@@ -66,9 +61,7 @@ where F: FnMut() -> io::Result<A> {
 
 impl<A: fmt::Debug, S: Deserialize<A>> Deserialize<Vec<A>> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Vec<A>> {
-        let v = readn(().read(d)?, || self.read(d))?;
-        println!("read {:?}: vec", v);
-        Ok(v)
+        readn(().read(d)?, || self.read(d))
     }
 }
 
@@ -97,9 +90,7 @@ impl<S> Deserialize<String> for S {
         loop {
             let c: u8 = ().read(d)?;
             if c == 0 {
-                let s = String::from_utf8(vec).map_err(|_| invalid("bad utf8"))?;
-                println!("read \"{}\": string", s);
-                return Ok(s)
+                return String::from_utf8(vec).map_err(|_| invalid("bad utf8"))
             } else { vec.push(c) }
         }
     }
@@ -137,7 +128,6 @@ impl<A: Clone> ObjectReader<A> {
         if c == 0 {
             let table = self.table.borrow_mut();
             let n: usize = table.read(d)?;
-            println!("backref {}", n);
             let a = table.get(n).ok_or(invalid("out of range"))?;
             Ok(a.clone())
         } else {
@@ -151,7 +141,7 @@ impl<A: Clone> ObjectReader<A> {
 
 impl Deserialize<Name> for ObjectReader<Name> {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Name> {
-        let name = ObjectReader::read_core(self, d, |d, n| {
+        ObjectReader::read_core(self, d, |d, n| {
             match n {
                 0 => Ok(Rc::new(Name2::Anon)),
                 1 => Ok(Rc::new(Name2::Str(Rc::new(Name2::Anon), self.read(d)?))),
@@ -160,23 +150,18 @@ impl Deserialize<Name> for ObjectReader<Name> {
                 4 => Ok(Rc::new(Name2::Num(self.read(d)?, self.read(d)?))),
                 _ => throw(&format!("bad name {}", n))
             }
-        })?;
-        println!("read {}: name", name);
-        Ok(name)
+        })
     }
 }
 
 impl<S> Deserialize<BinderInfo> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<BinderInfo> {
         let c: u8 = self.read(d)?;
-        let bi =
-             if c & 4 != 0 { BinderInfo::Implicit }
+        Ok(if c & 4 != 0 { BinderInfo::Implicit }
         else if c & 2 != 0 { BinderInfo::StrictImplicit }
         else if c & 1 != 0 { BinderInfo::InstImplicit }
         else if c & 8 != 0 { BinderInfo::AuxDecl }
-        else { BinderInfo::Default };
-        println!("read {:?}: binder_info", bi);
-        Ok(bi)
+        else { BinderInfo::Default })
     }
 }
 
@@ -204,7 +189,7 @@ impl Deserialize<Name> for Deserializer {
 
 impl Deserialize<Level> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Level> {
-        let lvl = ObjectReader::read_core(&self.lvl_reader, d, |d, _| {
+        ObjectReader::read_core(&self.lvl_reader, d, |d, _| {
             let n: u8 = self.read(d)?;
             match n {
                 0 => Ok(Rc::new(Level2::Zero)),
@@ -215,9 +200,7 @@ impl Deserialize<Level> for Deserializer {
                 5 => Ok(Rc::new(Level2::Meta(self.name_reader.read(d)?))),
                 _ => throw(&format!("bad name {}", n))
             }
-        })?;
-        println!("read {:?}: level", lvl);
-        Ok(lvl)
+        })
     }
 }
 
@@ -237,7 +220,7 @@ fn read_macro<T: io::Read>(s: &Deserializer, d: &mut T, args: Vec<Expr>) -> io::
 
 impl Deserialize<Expr> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Expr> {
-        let expr = ObjectReader::read_core(&self.expr_reader, d, |d, n| {
+        ObjectReader::read_core(&self.expr_reader, d, |d, n| {
             match n {
                 0 => Ok(Rc::new(Expr2::Var(self.read(d)?))),
                 1 => Ok(Rc::new(Expr2::Sort(self.read(d)?))),
@@ -251,30 +234,25 @@ impl Deserialize<Expr> for Deserializer {
                 9 => { let args = self.read(d)?; Ok(read_macro(self, d, args)?) },
                 _ => throw(&format!("bad name {}", n))
             }
-        })?;
-        println!("read {:?}: expr", expr);
-        Ok(expr)
+        })
     }
 }
 
 impl Deserialize<ModuleName> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<ModuleName> {
-        let (r, n) = self.read(d)?;
-        Ok(ModuleName{relative: r, name: n})
+        Ok(ModuleName{relative: self.read(d)?, name: self.read(d)?})
     }
 }
 
 impl Deserialize<ExportDecl> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<ExportDecl> {
-        let e = ExportDecl {
+        Ok(ExportDecl {
             ns: self.read(d)?,
             as_: self.read(d)?,
             had_explicit: self.read(d)?,
             except_names: self.read(d)?,
             renames:  self.read(d)?
-        };
-        println!("read {:?}", e);
-        Ok(e)
+        })
     }
 }
 
@@ -319,17 +297,13 @@ impl<S> Deserialize<PosInfo> for S {
 
 impl<S> Deserialize<ReducibleStatus> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<ReducibleStatus> {
-        let c = FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad reducible"))?;
-        println!("read {:?}: reducible_status", c);
-        Ok(c)
+        Ok(FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad reducible"))?)
     }
 }
 
 impl<S> Deserialize<ElabStrategy> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<ElabStrategy> {
-        let c = FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad elab strategy"))?;
-        println!("read {:?}: elab strategy", c);
-        Ok(c)
+        Ok(FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad elab strategy"))?)
     }
 }
 
@@ -354,14 +328,11 @@ impl Deserialize<AttrEntry> for Deserializer {
         let prio = self.read(d)?;
         let decl = self.read(d)?;
         let deleted = self.read(d)?;
-        let c =
-            if deleted { AttrEntry{attr, prio, record: AttrRecord(decl, None)} }
-            else { AttrEntry {
-                attr: attr.clone(), prio,
-                record: AttrRecord(decl, Some(read_attr_ext(self, d, attr)?))
-            } };
-        println!("read {:?}: attr_entry", c);
-        Ok(c)
+        Ok(if deleted {
+            AttrEntry{attr, prio, record: AttrRecord(decl, None)} }
+        else { AttrEntry {
+            attr: attr.clone(), prio,
+            record: AttrRecord(decl, Some(read_attr_ext(self, d, attr)?)) } })
     }
 }
 
@@ -401,9 +372,7 @@ impl Deserialize<InductiveDefn> for Deserializer {
 
 impl<S> Deserialize<GInductiveKind> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<GInductiveKind> {
-        let c = FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad reducible"))?;
-        println!("read {:?}: GInductiveKind", c);
-        Ok(c)
+        Ok(FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad reducible"))?)
     }
 }
 
@@ -416,14 +385,12 @@ impl Deserialize<GInductiveEntry> for Deserializer {
         let inds = self.read(d)?;
         let mut intro_rules = readn(().read(d)?, || self.read(d))?;
         intro_rules.reverse();
-        let e = GInductiveEntry {
+        Ok(GInductiveEntry {
             kind, inner, num_params, num_indices, inds, intro_rules,
             offsets: self.read(d)?,
             idx_to_ir_range: self.read(d)?,
             packs: self.read(d)?,
-            unpacks: self.read(d)? };
-        println!("read {:?}: GInductiveEntry", e);
-        Ok(e)
+            unpacks: self.read(d)? })
     }
 }
 
@@ -436,7 +403,7 @@ impl Deserialize<VMLocalInfo> for Deserializer {
 impl Deserialize<VMInstr> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<VMInstr> {
         let k: u8 = self.read(d)?;
-        let i = match k {
+        Ok(match k {
             0 => VMInstr::Push(self.read(d)?),
             1 => VMInstr::Move(self.read(d)?),
             2 => VMInstr::Ret,
@@ -460,9 +427,7 @@ impl Deserialize<VMInstr> for Deserializer {
             20 => VMInstr::Expr(self.read(d)?),
             21 => VMInstr::LocalInfo(self.read(d)?, self.read(d)?),
             _ => throw("bad opcode")?
-        };
-        println!("read {:?}: VMInstr", i);
-        Ok(i)
+        })
     }
 }
 
@@ -496,15 +461,11 @@ pub fn read_olean(mut f: File) -> io::Result<OLean> {
     let header: String = ds.read(&mut f)?;
     guard(header == "oleanfile", "incorrect header")?;
     let version: String = ds.read(&mut f)?;
-    println!("version: {}", version);
     let _claimed_hash: u32 = ds.read(&mut f)?;
-    let uses_sorry: bool = ds.read(&mut f)?;
-    println!("uses_sorry: {}", uses_sorry);
-    let imports: Vec<ModuleName> = ds.read(&mut f)?;
-    println!("imports: {:?}", imports);
-    let code: Box<[u8]> = read_blob(&mut f)?;
-    println!("code: [{:?}]", code.len());
-    Ok(OLean {version, uses_sorry, imports, code})
+    Ok(OLean { version,
+        uses_sorry: ds.read(&mut f)?,
+        imports: ds.read(&mut f)?,
+        code: read_blob(&mut f)? })
 }
 
 pub fn read_olean_modifications(mut d: &[u8]) -> io::Result<Vec<Modification>> {
@@ -512,7 +473,6 @@ pub fn read_olean_modifications(mut d: &[u8]) -> io::Result<Vec<Modification>> {
     let mut mods = Vec::new();
     loop {
         let k: String = ds.read(&mut d)?;
-        println!("reading {}", k);
         mods.push(match &*k {
             "EndFile" => return Ok(mods),
             "export_decl" => Modification::ExportDecl(ds.read(&mut d)?, ds.read(&mut d)?),

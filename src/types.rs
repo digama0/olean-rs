@@ -260,8 +260,8 @@ pub struct OLean {
 
 impl fmt::Display for OLean {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "version: {}", self.version)?;
-        write!(f, "uses sorry: {}", self.uses_sorry)?;
-        write!(f, "imports: {:?}", self.imports)
+        writeln!(f, "version: {}", self.version)?;
+        writeln!(f, "uses sorry: {}", self.uses_sorry)?;
+        writeln!(f, "imports: {:?}", self.imports)
     }
 }
