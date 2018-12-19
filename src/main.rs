@@ -17,7 +17,7 @@ fn main() -> io::Result<()> {
         println!("===================");
         let mods = deserialize::read_olean_modifications(&ol.code)?;
         for m in mods {
-            println!("{:?}", m);
+            // println!("{:?}", m);
         }
     }
     Ok(())

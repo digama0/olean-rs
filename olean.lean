@@ -320,9 +320,9 @@ meta instance : has_to_format inductive_decl :=
 meta instance : readable inductive_decl :=
 ⟨inductive_decl.mk <$> view <*> view <*> view <*> view <*> view⟩
 
-structure comp_rule :=
+meta structure comp_rule :=
 (num_bu : unsigned)
-(comp_rhs : unsigned)
+(comp_rhs : expr')
 
 meta instance : has_to_format comp_rule :=
 ⟨λ ⟨n, rhs⟩, br [to_fmt n, to_fmt rhs]⟩
@@ -728,6 +728,173 @@ meta instance : readable class_entry :=
   | _ := corrupted
   end⟩
 
+structure proj_info :=
+(constr : name)
+(nparams : unsigned)
+(i : unsigned)
+(inst_implicit : bool)
+
+meta instance : has_to_format proj_info :=
+⟨λ ⟨c,n,i,ii⟩, br [to_fmt c, to_fmt n, to_fmt i, to_fmt ii]⟩
+
+meta instance : readable proj_info :=
+⟨proj_info.mk <$> view <*> view <*> view <*> view⟩
+
+meta inductive action
+| skip
+| binder (rbp : unsigned)
+| binders (rbp : unsigned)
+| expr (rbp : unsigned)
+| exprs (sep : name) (rec : expr') (ini : option expr')
+  (is_foldr : bool) (rbp : unsigned) (terminator : option name)
+| scoped_expr (rec : expr') (rbp : unsigned) (use_lambda : bool)
+| ext (impossible : empty)
+
+meta instance : has_to_format action :=
+⟨λ n, match n with
+  | action.skip := "skip"
+  | action.binder rbp := p ["binder", to_fmt rbp]
+  | action.binders rbp := p ["binders", to_fmt rbp]
+  | action.expr rbp := p ["expr", to_fmt rbp]
+  | action.exprs sep rec ini fold rbp tm := p ["exprs",
+    to_fmt sep, to_fmt rec, to_fmt ini, to_fmt rbp, to_fmt tm]
+  | action.scoped_expr rec rbp lam :=
+    p ["scoped_expr", to_fmt rec, to_fmt rbp, to_fmt lam]
+  end⟩
+
+meta instance : readable action :=
+⟨do k ← readb,
+  match k with
+  | 0 := return action.skip
+  | 1 := action.binder <$> view
+  | 2 := action.binders <$> view
+  | 3 := action.expr <$> view
+  | 4 := action.exprs <$> view <*> view <*> view <*> view <*> view <*> view
+  | 5 := action.scoped_expr <$> view <*> view <*> view
+  | 6 := corrupted "Ext actions never appear in olean files"
+  | _ := corrupted
+  end⟩
+
+meta structure transition :=
+(tk : name) (pp : name) (act : action)
+
+meta instance : readable transition :=
+⟨transition.mk <$> view <*> view <*> view⟩
+
+meta instance : has_to_format transition :=
+⟨λ ⟨tk, pp, act⟩, br [to_fmt tk, to_fmt pp, to_fmt act]⟩
+
+meta inductive notation_entry_kind
+| reg (is_nud : bool) (transitions : list transition) (prio : unsigned)
+| numeral (n : ℤ)
+
+meta instance : has_to_format notation_entry_kind :=
+⟨λ n, match n with
+  | notation_entry_kind.reg tt tr prio := p ["nud", to_fmt tr, to_fmt prio]
+  | notation_entry_kind.reg ff tr prio := p ["led", to_fmt tr, to_fmt prio]
+  | notation_entry_kind.numeral n := p ["numeral", to_string n]
+  end⟩
+
+inductive notation_entry_group | main | reserve_
+
+meta instance : has_to_string notation_entry_group :=
+⟨λ n, match n with
+  | notation_entry_group.main := "main"
+  | notation_entry_group.reserve_ := "reserve"
+  end⟩
+
+meta instance : has_to_format notation_entry_group := ⟨format.of_string ∘ to_string⟩
+
+meta instance : readable notation_entry_group :=
+⟨do c ← readb,
+  match c with
+  | 0 := return notation_entry_group.main
+  | 1 := return notation_entry_group.reserve_
+  | _ := corrupted
+  end⟩
+
+meta structure notation_entry :=
+(kind : notation_entry_kind)
+(expr : expr')
+(overload : bool)
+(group : notation_entry_group)
+(parse_only : bool)
+
+meta instance : has_to_format notation_entry :=
+⟨λ ⟨k, pe, ol, g, po⟩, br [to_fmt k, to_fmt pe, to_fmt ol, to_fmt g, to_fmt po]⟩
+
+meta instance : readable notation_entry :=
+⟨do k ← readb,
+  ol ← view,
+  po ← view,
+  e ← view,
+  if k = 2 then do
+    n ← view,
+    return ⟨notation_entry_kind.numeral n, e, ol, notation_entry_group.main, po⟩
+  else do
+    g ← view,
+    nud ← match k with
+    | 0 := return tt
+    | 1 := return ff
+    | _ := corrupted
+    end,
+    tr ← view,
+    prio ← view,
+    return ⟨notation_entry_kind.reg nud tr prio, e, ol, g, po⟩⟩
+
+meta structure inverse_entry :=
+(decl : name) (arity : unsigned) (inv : name) (inv_arity : unsigned) (lemma_ : name)
+
+meta instance : readable inverse_entry :=
+⟨inverse_entry.mk <$> view <*> view <*> view <*> view <*> view⟩
+
+meta instance : has_to_format inverse_entry :=
+⟨λ ⟨d, a, i, ia, l⟩, br [to_fmt d, to_fmt a, to_fmt i, to_fmt ia, to_fmt l]⟩
+
+inductive op_kind | relation | subst | trans | refl | symm
+
+meta instance : has_to_string op_kind :=
+⟨λ n, match n with
+  | op_kind.relation := "relation"
+  | op_kind.subst := "subst"
+  | op_kind.trans := "trans"
+  | op_kind.refl := "refl"
+  | op_kind.symm := "symm"
+  end⟩
+
+meta instance : has_to_format op_kind := ⟨format.of_string ∘ to_string⟩
+
+meta instance : readable op_kind :=
+⟨do c ← readb,
+  match c with
+  | 0 := return op_kind.relation
+  | 1 := return op_kind.subst
+  | 2 := return op_kind.trans
+  | 3 := return op_kind.refl
+  | 4 := return op_kind.symm
+  | _ := corrupted
+  end⟩
+
+meta structure recursor_info :=
+(rec_ : name)
+(ty : name)
+(dep_elim : bool)
+(recursive : bool)
+(num_args : unsigned)
+(major_pos : unsigned)
+(univ_pos : list unsigned)
+(params_pos : list (option unsigned))
+(indices_pos : list unsigned)
+(produce_motive : list bool)
+
+meta instance : has_to_format recursor_info :=
+⟨λ ⟨r, t, de, rc, na, mp, up, pp, ip, pm⟩, br [to_fmt r, to_fmt t, to_fmt de,
+  to_fmt rc, to_fmt na, to_fmt mp, to_fmt up, to_fmt pp, to_fmt ip, to_fmt pm]⟩
+
+meta instance : readable recursor_info :=
+⟨recursor_info.mk <$> view <*> view <*> view <*> view <*> view <*>
+  view <*> view <*> view <*> view <*> view⟩
+
 meta inductive modification
 | export_decl (in_ns : name) (decl : export_decl)
 | pos_info (decl_name : name) (pos_info : pos_info)
@@ -735,20 +902,36 @@ meta inductive modification
 | decl (decl : declaration') (trust_lvl : unsigned)
 | aux_rec (decl : name)
 | protected_ (name : name)
+| private_ (name : name) (real : _root_.name)
 | gind (entry : ginductive_entry)
 | new_ns (ns : name)
 | vm_reserve (fn : name) (arity : unsigned)
 | vm_code (decl : vm_decl')
+| vm_monitor (decl : name)
 | eqn_lemmas (lem : name)
 | has_simple_eqn_lemma (decl : name)
 | no_conf (decl : name)
 | doc (decl : name) (doc : string)
 | ncomp (decl : name)
+| proj (decl : name) (info : proj_info)
+| decl_trace (decl : name)
+| user_command (decl : name)
+| user_notation (decl : name)
+| user_attr (decl : name)
+| hole_command (decl : name)
+| quot
+| native_module_path (decl : name)
+| key_eqv (n1 : name) (n2 : name)
 
 -- scoped extensions, not sure if these need to be separated out
-| token_config (token : string) (prec : unsigned)
+| token (tk : string) (prec : unsigned)
+| notation_ (entry : notation_entry)
 | attr (entry : attr_entry)
 | class_ (entry : class_entry)
+| inverse (entry : inverse_entry)
+| relation (kind : op_kind) (decl : name)
+| unification_hint (decl : name) (prio : unsigned)
+| user_recursor (info : recursor_info)
 
 section
 open modification
@@ -760,18 +943,35 @@ meta def modification.to_fmt : modification → format
 | (decl d l) := ls ["decl", to_fmt d, to_fmt l]
 | (aux_rec d) := ls ["aux_rec", to_fmt d]
 | (protected_ d) := ls ["protected", to_fmt d]
+| (private_ d r) := ls ["private", to_fmt d, to_fmt r]
 | (gind e) := ls ["gind", to_fmt e]
 | (new_ns ns) := ls ["new_ns", to_fmt ns]
 | (vm_reserve fn ar) := ls ["vm_reserve", to_fmt fn, to_fmt ar]
 | (vm_code d) := ls ["vm_code", to_fmt d]
+| (vm_monitor d) := ls ["vm_monitor", to_fmt d]
 | (eqn_lemmas lem) := ls ["eqn_lemmas", to_fmt lem]
 | (has_simple_eqn_lemma d) := ls ["has_simple_eqn_lemma", to_fmt d]
 | (no_conf d) := ls ["no_conf", to_fmt d]
 | (doc d s) := ls ["doc", to_fmt d, to_fmt s]
 | (ncomp d) := ls ["ncomp", to_fmt d]
-| (token_config tk prec) := ls ["token_config", to_fmt tk, to_fmt prec]
+| (proj d i) := ls ["proj", to_fmt d, to_fmt i]
+| (decl_trace d) := ls ["decl_trace", to_fmt d]
+| (user_command d) := ls ["user_command", to_fmt d]
+| (user_notation d) := ls ["user_notation", to_fmt d]
+| (user_attr d) := ls ["user_attr", to_fmt d]
+| (hole_command d) := ls ["hole_command", to_fmt d]
+| quot := "quot"
+| (native_module_path d) := ls ["native_module_path", to_fmt d]
+| (key_eqv n1 n2) := ls ["key_eqv", to_fmt n1, to_fmt n2]
+
+| (token tk prec) := ls ["token", to_fmt tk, to_fmt prec]
+| (notation_ e) := ls ["notation", to_fmt e]
 | (attr e) := ls ["attr", to_fmt e]
 | (class_ e) := ls ["class", to_fmt e]
+| (inverse e) := ls ["inverse", to_fmt e]
+| (relation k d) := ls ["relation", to_fmt k, to_fmt d]
+| (unification_hint d pr) := ls ["unification_hint", to_fmt d, to_fmt pr]
+| (user_recursor e) := ls ["user_recursor", to_fmt e]
 
 meta instance : has_to_format modification := ⟨modification.to_fmt⟩
 
@@ -781,23 +981,41 @@ meta def modification_readers : rbmap string (deserializer modification) :=
 rbmap.from_list [
   ("export_decl", modification.export_decl <$> view <*>
     (export_decl.mk <$> view <*> view <*> view <*> view <*> view)),
-  ("TK", modification.token_config <$> view <*> view),
   ("PInfo", modification.pos_info <$> view <*> view),
   ("ind", modification.inductive_ <$> view <*> view),
   ("decl", modification.decl <$> view <*> view),
-  ("ATTR", modification.attr <$> view),
   ("auxrec", modification.aux_rec <$> view),
   ("prt", modification.protected_ <$> view),
+  ("prv", modification.private_ <$> view <*> view),
   ("gind", modification.gind <$> view),
   ("nspace", modification.new_ns <$> view),
   ("VMR", modification.vm_reserve <$> view <*> view),
   ("VMC", modification.vm_code <$> view),
+  ("VMMonitor", modification.vm_monitor <$> view),
   ("EqnL", modification.eqn_lemmas <$> view),
   ("SEqnL", modification.has_simple_eqn_lemma <$> view),
-  ("class", modification.class_ <$> view),
   ("no_conf", modification.no_conf <$> view),
   ("doc", modification.doc <$> view <*> view),
-  ("ncomp", modification.ncomp <$> view) ]
+  ("ncomp", modification.ncomp <$> view),
+  ("proj", modification.proj <$> view <*> view),
+  ("decl_trace", modification.decl_trace <$> view),
+  ("USR_CMD", modification.user_command <$> view),
+  ("USR_NOTATION", modification.user_notation <$> view),
+  ("USR_ATTR", modification.user_attr <$> view),
+  ("HOLE_CMD", modification.hole_command <$> view),
+  ("quot", return modification.quot),
+  ("native_module_path", modification.native_module_path <$> view),
+  ("key_eqv", modification.key_eqv <$> view <*> view),
+
+  ("TK", modification.token <$> view <*> view),
+  ("NOTA", modification.notation_ <$> view),
+  ("ATTR", modification.attr <$> view),
+  ("class", modification.class_ <$> view),
+  ("inverse", modification.inverse <$> view),
+  ("REL", modification.relation <$> view <*> view),
+  ("UNIFICATION_HINT", modification.unification_hint <$> view <*> view),
+  ("UREC", modification.user_recursor <$> view),
+  ("active_export_decls", corrupted "active_export_decls should not appear in olean files") ]
 
 meta def read_modifications : buffer modification → deserializer (buffer modification)
 | buf := do k ← viewa string,

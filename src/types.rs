@@ -155,7 +155,7 @@ pub enum ElabStrategy { Simple, WithExpectedType, AsEliminator }
 
 #[derive(Debug)] pub struct CompRule {
     pub num_bu: u32,
-    pub comp_rhs: u32
+    pub comp_rhs: Expr
 }
 
 #[derive(Debug)] pub struct InductiveDefn {
@@ -238,6 +238,79 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
     Tracker(Name, Name),
 }
 
+#[derive(Debug)] pub struct ProjectionInfo {
+    pub constr: Name,
+    pub nparams: u32,
+    pub i: u32,
+    pub inst_implicit: bool
+}
+
+#[derive(Debug)] pub enum Action {
+    Skip,
+    Binder{rbp: u32},
+    Binders{rbp: u32},
+    Expr{rbp: u32},
+    Exprs {
+        sep: Name,
+        rec: Expr,
+        ini: Option<Expr>,
+        is_foldr: bool,
+        rbp: u32,
+        terminator: Option<Name> },
+    ScopedExpr {
+        rec: Expr,
+        rbp: u32,
+        use_lambda: bool }
+}
+
+#[derive(Debug)] pub struct Transition {
+    pub tk: Name,
+    pub pp: Name,
+    pub act: Action
+}
+
+#[derive(Debug)] pub enum NotationEntryKind {
+    Reg {
+        is_nud: bool,
+        transitions: Vec<Transition>,
+        prio: u32
+    },
+    Numeral(BigInt)
+}
+
+#[derive(Debug, FromPrimitive)] pub enum NotationEntryGroup { Main, Reserve }
+
+#[derive(Debug)] pub struct NotationEntry {
+    pub kind: NotationEntryKind,
+    pub expr: Expr,
+    pub overload: bool,
+    pub group: NotationEntryGroup,
+    pub parse_only: bool
+}
+
+#[derive(Debug)] pub struct InverseEntry {
+    pub decl: Name,
+    pub arity: u32,
+    pub inv: Name,
+    pub inv_arity: u32,
+    pub lemma: Name
+}
+
+#[derive(Debug, FromPrimitive)] pub enum OpKind { Relation, Subst, Trans, Refl, Symm }
+
+#[derive(Debug)] pub struct RecursorInfo {
+    pub rec: Name,
+    pub ty: Name,
+    pub dep_elim: bool,
+    pub recursive: bool,
+    pub num_args: u32,
+    pub major_pos: u32,
+    pub univ_pos: Vec<u32>,
+    pub params_pos: Vec<Option<u32>>,
+    pub indices_pos: Vec<u32>,
+    pub produce_motive: Vec<bool>
+}
+
 #[derive(Debug)] pub enum Modification {
     ExportDecl(Name, ExportDecl),
     Decl {decl: Declaration, trust_lvl: u32},
@@ -245,22 +318,38 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
     Inductive{defn: InductiveDefn, trust_lvl: u32},
     AuxRec(Name),
     Protected(Name),
+    Private{name: Name, real: Name},
     GInd(GInductiveEntry),
     NewNS(Name),
     VMReserve(Name, u32),
     VMCode(VMDecl),
+    VMMonitor(Name),
     EqnLemmas(Name),
     HasSimpleEqnLemma(Name),
     NoConf(Name),
     Doc(Name, String),
     Noncomputable(Name),
+    Proj(Name, ProjectionInfo),
+    DeclTrace(Name),
+    UserCommand(Name),
+    UserNotation(Name),
+    UserAttribute(Name),
+    HoleCommand(Name),
+    Quot,
+    NativeModulePath(Name),
+    KeyEquivalence(Name, Name),
 
-    TokenConfig{tk: String, prec: u32},
+    Token{tk: String, prec: u32},
+    Notation(NotationEntry),
     Attr(AttrEntry),
-    Class(ClassEntry)
+    Class(ClassEntry),
+    Inverse(InverseEntry),
+    Relation(OpKind, Name),
+    UnificationHint(Name, u32),
+    UserRecursor(RecursorInfo)
 }
 
-pub struct OLean {
+#[derive(Debug)] pub struct OLean {
     pub version: String,
     pub uses_sorry: bool,
     pub imports: Vec<ModuleName>,
