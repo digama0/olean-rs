@@ -20,6 +20,7 @@ with macro_def' : Type
 | field_notation (name : name) (idx : unsigned)
 | annot (name : name)
 | choice
+| nat_value (n : ℤ)
 | rec_fn (name : name)
 | proj (i c proj : name) (idx : unsigned) (ps : list name) (ty val : expr')
 | equations (header : equations_header)
@@ -69,6 +70,7 @@ with macro_def'.to_fmt : macro_def' → format
 | (field_notation n i) := ls ["field_notation", to_fmt n, to_fmt i]
 | (annot n) := ls ["annot", to_fmt n]
 | choice := "choice"
+| (nat_value n) := ls ["nat_value", to_string n]
 | (rec_fn n) := ls ["rec_fn", to_fmt n]
 | (proj i c pj ix ps ty v) := ls ["proj", to_fmt i, to_fmt c,
   to_fmt pj, to_fmt ix, to_fmt ps, ty.to_fmt, v.to_fmt]
@@ -282,6 +284,7 @@ meta def macro_def'.check : macro_def' → list expr' → bool
 | (macro_def'.struct_inst _ _ fs) args := fs.length ≤ args.length
 | (macro_def'.annot _) args := args.length = 1
 | macro_def'.choice args := args.length > 1
+| (macro_def'.nat_value _) args := args.length = 0
 | (macro_def'.rec_fn _) args := args.length = 1
 | (macro_def'.proj _ _ _ _ _ _ _) args := args.length = 1
 | (macro_def'.equation _) args := args.length = 2
@@ -300,6 +303,7 @@ meta def read_macro1 [readable expr'] (args : list expr') : string → deseriali
 | "fieldN" := macro_def'.field_notation <$> view <*> view
 | "Annot" := macro_def'.annot <$> view
 | "Choice" := return macro_def'.choice
+| "CNatM" := macro_def'.nat_value <$> view
 | "RecFn" := macro_def'.rec_fn <$> view
 | "Proj" := macro_def'.proj <$> view <*> view <*> view <*> view <*> view <*> view <*> view
 | "Eqns" := macro_def'.equations <$> view
@@ -662,7 +666,7 @@ meta inductive vm_instr
 | move (idx : unsigned)
 | ret
 | drop (num : unsigned)
-| goto (tru : unsigned) (fal : unsigned)
+| goto (tgt : unsigned)
 | sconstr (idx : unsigned)
 | constr (idx : unsigned) (nfields : unsigned)
 | num (n : ℤ)
@@ -690,7 +694,7 @@ meta instance : has_to_format vm_instr :=
 | move i := ls ["move", to_fmt i]
 | ret := "ret"
 | drop i := ls ["drop", to_fmt i]
-| goto l1 l2 := ls ["goto", to_fmt l1, to_fmt l2]
+| goto tgt := ls ["goto", to_fmt tgt]
 | sconstr i := ls ["sconstr", to_fmt i]
 | constr i n := ls ["constr", to_fmt i, to_fmt n]
 | num n := ls ["num", to_string n]
@@ -719,7 +723,7 @@ meta instance : readable vm_instr :=
   | 1 := vm_instr.move <$> view
   | 2 := return vm_instr.ret
   | 3 := vm_instr.drop <$> view
-  | 4 := vm_instr.goto <$> view <*> view
+  | 4 := vm_instr.goto <$> view
   | 5 := vm_instr.sconstr <$> view
   | 6 := vm_instr.constr <$> view <*> view
   | 7 := vm_instr.num <$> view
@@ -816,22 +820,22 @@ meta instance : readable proj_info :=
 
 meta inductive action
 | skip
-| binder (rbp : unsigned)
-| binders (rbp : unsigned)
 | expr (rbp : unsigned)
 | exprs (sep : name) (rec : expr') (ini : option expr')
   (is_foldr : bool) (rbp : unsigned) (terminator : option name)
+| binder (rbp : unsigned)
+| binders (rbp : unsigned)
 | scoped_expr (rec : expr') (rbp : unsigned) (use_lambda : bool)
 | ext (impossible : empty)
 
 meta instance : has_to_format action :=
 ⟨λ n, match n with
   | action.skip := "skip"
-  | action.binder rbp := p ["binder", to_fmt rbp]
-  | action.binders rbp := p ["binders", to_fmt rbp]
   | action.expr rbp := p ["expr", to_fmt rbp]
   | action.exprs sep rec ini fold rbp tm := p ["exprs",
     to_fmt sep, to_fmt rec, to_fmt ini, to_fmt rbp, to_fmt tm]
+  | action.binder rbp := p ["binder", to_fmt rbp]
+  | action.binders rbp := p ["binders", to_fmt rbp]
   | action.scoped_expr rec rbp lam :=
     p ["scoped_expr", to_fmt rec, to_fmt rbp, to_fmt lam]
   end⟩
@@ -840,10 +844,10 @@ meta instance : readable action :=
 ⟨do k ← readb,
   match k with
   | 0 := return action.skip
-  | 1 := action.binder <$> view
-  | 2 := action.binders <$> view
-  | 3 := action.expr <$> view
-  | 4 := action.exprs <$> view <*> view <*> view <*> view <*> view <*> view
+  | 1 := action.expr <$> view
+  | 2 := action.exprs <$> view <*> view <*> view <*> view <*> view <*> view
+  | 3 := action.binder <$> view
+  | 4 := action.binders <$> view
   | 5 := action.scoped_expr <$> view <*> view <*> view
   | 6 := corrupted "Ext actions never appear in olean files"
   | _ := corrupted
@@ -998,7 +1002,7 @@ meta inductive modification
 | key_eqv (n1 : name) (n2 : name)
 
 -- scoped extensions, not sure if these need to be separated out
-| token (tk : string) (prec : unsigned)
+| token (tk : string) (prec : option unsigned)
 | notation_ (entry : notation_entry)
 | attr (entry : attr_entry)
 | class_ (entry : class_entry)

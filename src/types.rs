@@ -97,6 +97,7 @@ pub type Expr = Rc<Expr2>;
     FieldNotation(Name, u32),
     Annot(Name),
     Choice,
+    NatValue(BigInt),
     RecFn(Name),
     Proj {
         i_name: Name, c_name: Name, proj_name: Name,
@@ -120,6 +121,7 @@ pub fn check_macro(m: &MacroDef, args: &Vec<Expr>) -> bool {
         MacroDef::FieldNotation{..} => args.len() == 1,
         MacroDef::Annot{..} => args.len() == 1,
         MacroDef::Choice => args.len() > 1,
+        MacroDef::NatValue{..} => args.len() == 0,
         MacroDef::RecFn{..} => args.len() == 1,
         MacroDef::Proj{..} => args.len() == 1,
         MacroDef::Equation{..} => args.len() == 2,
@@ -237,7 +239,7 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
     Move(u32),
     Ret,
     Drop(u32),
-    Goto(u32, u32),
+    Goto(u32),
     SConstr(u32),
     Constr(u32, u32),
     Num(BigInt),
@@ -287,8 +289,6 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
 
 #[derive(Debug)] pub enum Action {
     Skip,
-    Binder{rbp: u32},
-    Binders{rbp: u32},
     Expr{rbp: u32},
     Exprs {
         sep: Name,
@@ -297,6 +297,8 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
         is_foldr: bool,
         rbp: u32,
         terminator: Option<Name> },
+    Binder{rbp: u32},
+    Binders{rbp: u32},
     ScopedExpr {
         rec: Expr,
         rbp: u32,
@@ -379,7 +381,7 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
     NativeModulePath(Name),
     KeyEquivalence(Name, Name),
 
-    Token{tk: String, prec: u32},
+    Token{tk: String, prec: Option<u32>},
     Notation(NotationEntry),
     Attr(AttrEntry),
     Class(ClassEntry),

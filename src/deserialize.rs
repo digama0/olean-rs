@@ -3,14 +3,10 @@ use std::fs::File;
 use std::rc::Rc;
 use std::fmt;
 use std::cell::RefCell;
-use std::io::Write;
 use byteorder::{ReadBytesExt, BigEndian};
 use num_traits::cast::FromPrimitive;
 use num::bigint::BigInt;
 use super::types::*;
-
-// #[macro_use] extern crate lazy_static;
-// #[macro_use] extern crate num_derive;
 
 fn invalid(s: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, s)
@@ -49,7 +45,9 @@ impl<S> Deserialize<usize> for S {
 
 impl<S> Deserialize<u64> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<u64> {
-        d.read_u64::<BigEndian>()
+        let hi: u32 = ().read(d)?;
+        let lo: u32 = ().read(d)?;
+        Ok(((hi as u64) << 32) | (lo as u64))
     }
 }
 
@@ -101,7 +99,7 @@ impl<S> Deserialize<String> for S {
 impl<S> Deserialize<bool> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<bool> {
         let c: u8 = ().read(d)?;
-        Ok(c != 0)
+        trace(c != 0)
     }
 }
 
@@ -169,8 +167,10 @@ impl<S> Deserialize<BinderInfo> for S {
 }
 
 fn trace<T: fmt::Debug>(t: T) -> io::Result<T> {
-    println!("({:?}) read {:?}", stacker::remaining_stack(), t);
-    io::stdout().flush()?;
+    let stk = stacker::remaining_stack().unwrap();
+    if stk < 100000 { panic!() };
+    println!("({:?}) read {:?}", stk, t);
+    // io::stdout().flush()?;
     Ok(t)
 }
 
@@ -238,6 +238,7 @@ fn read_macro<T: io::Read>(s: &Deserializer, d: &mut T, args: Vec<Expr>) -> io::
         "fieldN" => MacroDef::FieldNotation(s.read(d)?, s.read(d)?),
         "Annot" => MacroDef::Annot(s.read(d)?),
         "Choice" => MacroDef::Choice,
+        "CNatM" => MacroDef::NatValue(s.read(d)?),
         "RecFn" => MacroDef::RecFn(s.read(d)?),
         "Proj" => MacroDef::Proj {
             i_name: s.read(d)?, c_name: s.read(d)?, proj_name: s.read(d)?,
@@ -259,20 +260,43 @@ fn read_macro<T: io::Read>(s: &Deserializer, d: &mut T, args: Vec<Expr>) -> io::
     Ok(Rc::new(Expr2::Macro(m, args)))
 }
 
+// These are un-inlined from Deserialize<Expr> because the intermediates
+// in all the match branches bloat the stack frame, and this function is called deeply
+fn read_var<T: io::Read>(d: &mut T) -> io::Result<Expr> {
+    Ok(Rc::new(Expr2::Var(().read(d)?))) }
+fn read_sort<T: io::Read>(s: &Deserializer, d: &mut T) -> io::Result<Expr> {
+    Ok(Rc::new(Expr2::Sort(s.read(d)?))) }
+fn read_const<T: io::Read>(s: &Deserializer, d: &mut T) -> io::Result<Expr> {
+    Ok(Rc::new(Expr2::Const(s.read(d)?, s.read(d)?))) }
+fn read_mvar<T: io::Read>(s: &Deserializer, d: &mut T) -> io::Result<Expr> {
+    Ok(Rc::new(Expr2::MVar(s.read(d)?, s.read(d)?, s.read(d)?))) }
+fn read_local<T: io::Read>(s: &Deserializer, d: &mut T) -> io::Result<Expr> {
+    Ok(Rc::new(Expr2::Local(s.read(d)?, s.read(d)?, s.read(d)?, s.read(d)?))) }
+fn read_app<T: io::Read>(s: &Deserializer, d: &mut T) -> io::Result<Expr> {
+    Ok(Rc::new(Expr2::App(s.read(d)?, s.read(d)?))) }
+fn read_lam<T: io::Read>(s: &Deserializer, d: &mut T) -> io::Result<Expr> {
+    Ok(Rc::new(Expr2::Lam(s.read(d)?, s.read(d)?, s.read(d)?, s.read(d)?))) }
+fn read_pi<T: io::Read>(s: &Deserializer, d: &mut T) -> io::Result<Expr> {
+    Ok(Rc::new(Expr2::Pi(s.read(d)?, s.read(d)?, s.read(d)?, s.read(d)?))) }
+fn read_let<T: io::Read>(s: &Deserializer, d: &mut T) -> io::Result<Expr> {
+    Ok(Rc::new(Expr2::Let(s.read(d)?, s.read(d)?, s.read(d)?, s.read(d)?))) }
+fn read_macro_expr<T: io::Read>(s: &Deserializer, d: &mut T) -> io::Result<Expr> {
+    let args = s.read(d)?; Ok(read_macro(s, d, args)?) }
+
 impl Deserialize<Expr> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Expr> {
         trace(ObjectReader::read_core(&self.expr_reader, d, |d, n| {
             match n {
-                0 => Ok(Rc::new(Expr2::Var(self.read(d)?))),
-                1 => Ok(Rc::new(Expr2::Sort(self.read(d)?))),
-                2 => Ok(Rc::new(Expr2::Const(self.read(d)?, self.read(d)?))),
-                3 => Ok(Rc::new(Expr2::MVar(self.read(d)?, self.read(d)?, self.read(d)?))),
-                4 => Ok(Rc::new(Expr2::Local(self.read(d)?, self.read(d)?, self.read(d)?, self.read(d)?))),
-                5 => Ok(Rc::new(Expr2::App(self.read(d)?, self.read(d)?))),
-                6 => Ok(Rc::new(Expr2::Lam(self.read(d)?, self.read(d)?, self.read(d)?, self.read(d)?))),
-                7 => Ok(Rc::new(Expr2::Pi(self.read(d)?, self.read(d)?, self.read(d)?, self.read(d)?))),
-                8 => Ok(Rc::new(Expr2::Let(self.read(d)?, self.read(d)?, self.read(d)?, self.read(d)?))),
-                9 => { let args = self.read(d)?; Ok(read_macro(self, d, args)?) },
+                0 => read_var(d),
+                1 => read_sort(self, d),
+                2 => read_const(self, d),
+                3 => read_mvar(self, d),
+                4 => read_local(self, d),
+                5 => read_app(self, d),
+                6 => read_lam(self, d),
+                7 => read_pi(self, d),
+                8 => read_let(self, d),
+                9 => read_macro_expr(self, d),
                 _ => throw(&format!("bad name {}", n))
             }
         })?)
@@ -474,7 +498,7 @@ impl Deserialize<VMInstr> for Deserializer {
             1 => VMInstr::Move(self.read(d)?),
             2 => VMInstr::Ret,
             3 => VMInstr::Drop(self.read(d)?),
-            4 => VMInstr::Goto(self.read(d)?, self.read(d)?),
+            4 => VMInstr::Goto(self.read(d)?),
             5 => VMInstr::SConstr(self.read(d)?),
             6 => VMInstr::Constr(self.read(d)?, self.read(d)?),
             7 => VMInstr::Num(self.read(d)?),
@@ -535,18 +559,18 @@ impl Deserialize<ClassEntry> for Deserializer {
 impl Deserialize<Action> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Action> {
         let k: u8 = self.read(d)?;
-        Ok(match k {
+        trace(match k {
             0 => Action::Skip,
-            1 => Action::Binder{rbp: self.read(d)?},
-            2 => Action::Binders{rbp: self.read(d)?},
-            3 => Action::Expr{rbp: self.read(d)?},
-            4 => Action::Exprs {
+            1 => Action::Expr{rbp: self.read(d)?},
+            2 => Action::Exprs {
                 sep: self.read(d)?,
                 rec: self.read(d)?,
                 ini: self.read(d)?,
                 is_foldr: self.read(d)?,
                 rbp: self.read(d)?,
                 terminator: self.read(d)? },
+            3 => Action::Binder{rbp: self.read(d)?},
+            4 => Action::Binders{rbp: self.read(d)?},
             5 => Action::ScopedExpr {
                 rec: self.read(d)?,
                 rbp: self.read(d)?,
@@ -559,7 +583,7 @@ impl Deserialize<Action> for Deserializer {
 
 impl Deserialize<Transition> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Transition> {
-        Ok(Transition{tk: self.read(d)?, pp: self.read(d)?, act: self.read(d)?})
+        trace(Transition{tk: self.read(d)?, pp: self.read(d)?, act: self.read(d)?})
     }
 }
 
