@@ -7,6 +7,7 @@ use byteorder::{ReadBytesExt, BigEndian};
 use num_traits::cast::FromPrimitive;
 use num::bigint::BigInt;
 use super::types::*;
+use super::hasher;
 
 fn invalid(s: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, s)
@@ -646,11 +647,12 @@ pub fn read_olean(mut f: File) -> io::Result<OLean> {
     let header: String = ds.read(&mut f)?;
     guard(header == "oleanfile", "incorrect header")?;
     let version: String = ds.read(&mut f)?;
-    let _claimed_hash: u32 = ds.read(&mut f)?;
-    trace(OLean { version,
-        uses_sorry: ds.read(&mut f)?,
-        imports: ds.read(&mut f)?,
-        code: read_blob(&mut f)? })
+    let claimed_hash: u32 = ds.read(&mut f)?;
+    let uses_sorry = ds.read(&mut f)?;
+    let imports = ds.read(&mut f)?;
+    let code = read_blob(&mut f)?;
+    guard(claimed_hash == hasher::hash(&code), "incorrect hash")?;
+    Ok(OLean { version, uses_sorry, imports, code })
 }
 
 pub fn read_olean_modifications(mut d: &[u8]) -> io::Result<Vec<Modification>> {
