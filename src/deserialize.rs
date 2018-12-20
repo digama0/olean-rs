@@ -368,7 +368,7 @@ impl<S> Deserialize<ReducibleStatus> for S {
 
 impl<S> Deserialize<ElabStrategy> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<ElabStrategy> {
-        trace(FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad elab strategy"))?)
+        trace(FromPrimitive::from_u8(self.read(d)?).unwrap_or(ElabStrategy::Simple))
     }
 }
 
