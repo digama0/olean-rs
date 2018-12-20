@@ -24,22 +24,22 @@ trait Deserialize<A: Sized> {
 
 impl<S> Deserialize<u8> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<u8> {
-        trace(d.read_u8()?)
+        d.read_u8()
     }
 }
 
 impl<S> Deserialize<u32> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<u32> {
         let x: u8 = ().read(d)?;
-        trace(if x < 255 { Ok(x.into()) }
-        else { d.read_u32::<BigEndian>() }?)
+        if x < 255 { Ok(x.into()) }
+        else { d.read_u32::<BigEndian>() }
     }
 }
 
 impl<S> Deserialize<usize> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<usize> {
         let c: u32 = ().read(d)?;
-        trace(c as usize)
+        Ok(c as usize)
     }
 }
 
@@ -60,7 +60,7 @@ where F: FnMut() -> io::Result<A> {
 
 impl<A: fmt::Debug, S: Deserialize<A>> Deserialize<Vec<A>> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Vec<A>> {
-        trace(readn(().read(d)?, || self.read(d))?)
+        readn(().read(d)?, || self.read(d))
     }
 }
 
@@ -89,8 +89,8 @@ impl<S> Deserialize<String> for S {
         loop {
             let c: u8 = ().read(d)?;
             if c == 0 {
-                return trace(String::from_utf8(vec)
-                    .map_err(|s| invalid(&format!("bad utf8, got {}", s)))?)
+                return String::from_utf8(vec)
+                    .map_err(|s| invalid(&format!("bad utf8, got {}", s)))
             } else { vec.push(c) }
         }
     }
@@ -99,7 +99,7 @@ impl<S> Deserialize<String> for S {
 impl<S> Deserialize<bool> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<bool> {
         let c: u8 = ().read(d)?;
-        trace(c != 0)
+        Ok(c != 0)
     }
 }
 
@@ -142,7 +142,7 @@ impl<A: Clone> ObjectReader<A> {
 
 impl Deserialize<Name> for ObjectReader<Name> {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Name> {
-        trace(ObjectReader::read_core(self, d, |d, n| {
+        ObjectReader::read_core(self, d, |d, n| {
             match n {
                 0 => Ok(Rc::new(Name2::Anon)),
                 1 => Ok(Rc::new(Name2::Str(Rc::new(Name2::Anon), self.read(d)?))),
@@ -151,7 +151,7 @@ impl Deserialize<Name> for ObjectReader<Name> {
                 4 => Ok(Rc::new(Name2::Num(self.read(d)?, self.read(d)?))),
                 _ => throw(&format!("bad name {}", n))
             }
-        })?)
+        })
     }
 }
 
@@ -164,14 +164,6 @@ impl<S> Deserialize<BinderInfo> for S {
         else if c & 8 != 0 { BinderInfo::AuxDecl }
         else { BinderInfo::Default })
     }
-}
-
-fn trace<T: fmt::Debug>(t: T) -> io::Result<T> {
-    let stk = stacker::remaining_stack().unwrap();
-    if stk < 100000 { panic!() };
-    println!("({:?}) read {:?}", stk, t);
-    // io::stdout().flush()?;
-    Ok(t)
 }
 
 struct Deserializer {
@@ -198,7 +190,7 @@ impl Deserialize<Name> for Deserializer {
 
 impl Deserialize<Level> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Level> {
-        trace(ObjectReader::read_core(&self.lvl_reader, d, |d, _| {
+        ObjectReader::read_core(&self.lvl_reader, d, |d, _| {
             let n: u8 = self.read(d)?;
             match n {
                 0 => Ok(Rc::new(Level2::Zero)),
@@ -209,7 +201,7 @@ impl Deserialize<Level> for Deserializer {
                 5 => Ok(Rc::new(Level2::Meta(self.name_reader.read(d)?))),
                 _ => throw(&format!("bad name {}", n))
             }
-        })?)
+        })
     }
 }
 
@@ -285,7 +277,7 @@ fn read_macro_expr<T: io::Read>(s: &Deserializer, d: &mut T) -> io::Result<Expr>
 
 impl Deserialize<Expr> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Expr> {
-        trace(ObjectReader::read_core(&self.expr_reader, d, |d, n| {
+        ObjectReader::read_core(&self.expr_reader, d, |d, n| {
             match n {
                 0 => read_var(d),
                 1 => read_sort(self, d),
@@ -299,7 +291,7 @@ impl Deserialize<Expr> for Deserializer {
                 9 => read_macro_expr(self, d),
                 _ => throw(&format!("bad name {}", n))
             }
-        })?)
+        })
     }
 }
 
@@ -342,7 +334,7 @@ impl Deserialize<Declaration> for Deserializer {
         let n = self.read(d)?;
         let ps = self.read(d)?;
         let ty = self.read(d)?;
-        trace(if has_value {
+        Ok(if has_value {
             let val = self.read(d)?;
             if is_th_ax {
                 Declaration::Thm{name: n, ps, ty, val}
@@ -356,24 +348,24 @@ impl Deserialize<Declaration> for Deserializer {
 
 impl<S> Deserialize<PosInfo> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<PosInfo> {
-        trace(PosInfo{line: ().read(d)?, col: ().read(d)?})
+        Ok(PosInfo{line: ().read(d)?, col: ().read(d)?})
     }
 }
 
 impl<S> Deserialize<ReducibleStatus> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<ReducibleStatus> {
-        trace(FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad reducible"))?)
+        FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad reducible"))
     }
 }
 
 impl<S> Deserialize<ElabStrategy> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<ElabStrategy> {
-        trace(FromPrimitive::from_u8(self.read(d)?).unwrap_or(ElabStrategy::Simple))
+        Ok(FromPrimitive::from_u8(self.read(d)?).unwrap_or(ElabStrategy::Simple))
     }
 }
 
 fn read_attr_ext<T: io::Read>(s: &Deserializer, d: &mut T, n: Name) -> io::Result<AttrData> {
-    trace(match to_simple_name(&n) {
+    Ok(match to_simple_name(&n) {
         Some("_refl_lemma") => AttrData::Basic,
         Some("simp") => AttrData::Basic,
         Some("wrapper_eq") => AttrData::Basic,
@@ -419,7 +411,7 @@ impl Deserialize<AttrEntry> for Deserializer {
         let prio = self.read(d)?;
         let decl = self.read(d)?;
         let deleted = self.read(d)?;
-        trace(if deleted {
+        Ok(if deleted {
             AttrEntry{attr, prio, record: AttrRecord(decl, None)} }
         else { AttrEntry {
             attr: attr.clone(), prio,
@@ -429,7 +421,7 @@ impl Deserialize<AttrEntry> for Deserializer {
 
 impl Deserialize<InductiveDecl> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<InductiveDecl> {
-        trace(InductiveDecl {
+        Ok(InductiveDecl {
             name: self.read(d)?,
             level_params: self.read(d)?,
             nparams: self.read(d)?,
@@ -440,13 +432,13 @@ impl Deserialize<InductiveDecl> for Deserializer {
 
 impl Deserialize<CompRule> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<CompRule> {
-        trace(CompRule { num_bu: self.read(d)?, comp_rhs: self.read(d)? })
+        Ok(CompRule { num_bu: self.read(d)?, comp_rhs: self.read(d)? })
     }
 }
 
 impl Deserialize<InductiveDefn> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<InductiveDefn> {
-        trace(InductiveDefn {
+        Ok(InductiveDefn {
             num_ac_e: self.read(d)?,
             elim_prop: self.read(d)?,
             dep_elim: self.read(d)?,
@@ -462,7 +454,7 @@ impl Deserialize<InductiveDefn> for Deserializer {
 
 impl<S> Deserialize<GInductiveKind> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<GInductiveKind> {
-        trace(FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad ginductive kind"))?)
+        FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad ginductive kind"))
     }
 }
 
@@ -475,7 +467,7 @@ impl Deserialize<GInductiveEntry> for Deserializer {
         let inds: Vec<Name> = self.read(d)?;
         let mut intro_rules = readn(inds.len(), || self.read(d))?;
         intro_rules.reverse();
-        trace(GInductiveEntry {
+        Ok(GInductiveEntry {
             kind, inner, num_params, num_indices, inds, intro_rules,
             offsets: self.read(d)?,
             idx_to_ir_range: self.read(d)?,
@@ -486,14 +478,14 @@ impl Deserialize<GInductiveEntry> for Deserializer {
 
 impl Deserialize<VMLocalInfo> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<VMLocalInfo> {
-        trace(VMLocalInfo {id: self.read(d)?, ty: self.read(d)?})
+        Ok(VMLocalInfo {id: self.read(d)?, ty: self.read(d)?})
     }
 }
 
 impl Deserialize<VMInstr> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<VMInstr> {
         let k: u8 = self.read(d)?;
-        trace(match k {
+        Ok(match k {
             0 => VMInstr::Push(self.read(d)?),
             1 => VMInstr::Move(self.read(d)?),
             2 => VMInstr::Ret,
@@ -529,14 +521,14 @@ impl Deserialize<VMDecl> for Deserializer {
         let pos_info = self.read(d)?;
         let args_info = self.read(d)?;
         let code = readn(code_sz, || self.read(d))?;
-        trace(VMDecl { kind: VMDeclKind::Bytecode(code),
+        Ok(VMDecl { kind: VMDeclKind::Bytecode(code),
             name, arity, args_info, pos_info, olean: None })
     }
 }
 
 impl Deserialize<ProjectionInfo> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<ProjectionInfo> {
-        trace(ProjectionInfo {
+        Ok(ProjectionInfo {
             constr: self.read(d)?,
             nparams: self.read(d)?,
             i: self.read(d)?,
@@ -547,7 +539,7 @@ impl Deserialize<ProjectionInfo> for Deserializer {
 impl Deserialize<ClassEntry> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<ClassEntry> {
         let k: u8 = self.read(d)?;
-        trace(match k {
+        Ok(match k {
             0 => ClassEntry::Class(self.read(d)?),
             1 => ClassEntry::Instance(self.read(d)?, self.read(d)?, self.read(d)?),
             2 => ClassEntry::Tracker(self.read(d)?, self.read(d)?),
@@ -559,7 +551,7 @@ impl Deserialize<ClassEntry> for Deserializer {
 impl Deserialize<Action> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Action> {
         let k: u8 = self.read(d)?;
-        trace(match k {
+        Ok(match k {
             0 => Action::Skip,
             1 => Action::Expr{rbp: self.read(d)?},
             2 => Action::Exprs {
@@ -583,13 +575,13 @@ impl Deserialize<Action> for Deserializer {
 
 impl Deserialize<Transition> for Deserializer {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Transition> {
-        trace(Transition{tk: self.read(d)?, pp: self.read(d)?, act: self.read(d)?})
+        Ok(Transition{tk: self.read(d)?, pp: self.read(d)?, act: self.read(d)?})
     }
 }
 
 impl<S> Deserialize<NotationEntryGroup> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<NotationEntryGroup> {
-        trace(FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad notation entry group"))?)
+        FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad notation entry group"))
     }
 }
 
@@ -629,7 +621,7 @@ impl Deserialize<InverseEntry> for Deserializer {
 
 impl<S> Deserialize<OpKind> for S {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<OpKind> {
-        trace(FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad op kind"))?)
+        FromPrimitive::from_u8(self.read(d)?).ok_or(invalid("bad op kind"))
     }
 }
 
@@ -666,7 +658,7 @@ pub fn read_olean_modifications(mut d: &[u8]) -> io::Result<Vec<Modification>> {
     let mut mods = Vec::new();
     loop {
         let k: String = ds.read(&mut d)?;
-        mods.push(trace(match &*k {
+        mods.push(match &*k {
             "EndFile" => return Ok(mods),
             "export_decl" => Modification::ExportDecl(ds.read(&mut d)?, ds.read(&mut d)?),
             "decl" => Modification::Decl { decl: ds.read(&mut d)?, trust_lvl: ds.read(&mut d)? },
@@ -705,6 +697,6 @@ pub fn read_olean_modifications(mut d: &[u8]) -> io::Result<Vec<Modification>> {
             "UREC" => Modification::UserRecursor(ds.read(&mut d)?),
             "active_export_decls" => return throw("active_export_decls should not appear in olean files"),
             _ => return throw(&format!("unknown modification {}", k))
-        })?)
+        })
     }
 }
