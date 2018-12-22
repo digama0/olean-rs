@@ -389,6 +389,11 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
     pub produce_motive: Vec<bool>
 }
 
+#[derive(Clone, Debug)] pub struct Token {
+    pub tk: String,
+    pub prec: Option<u32>
+}
+
 #[derive(Debug)] pub enum Modification {
     ExportDecl(Name, ExportDecl),
     Decl {decl: Declaration, trust_lvl: u32},
@@ -417,7 +422,7 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
     NativeModulePath(Name),
     KeyEquivalence(Name, Name),
 
-    Token{tk: String, prec: Option<u32>},
+    Token(Token),
     Notation(NotationEntry),
     Attr(AttrEntry),
     Class(ClassEntry),

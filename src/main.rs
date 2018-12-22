@@ -4,6 +4,7 @@ mod hasher;
 mod args;
 mod leanpath;
 mod loader;
+mod parser;
 
 use std::io;
 use std::fs::File;
@@ -25,15 +26,20 @@ fn main() -> io::Result<()> {
             for m in mods {
                 println!("{:?}", m);
             }
-            Ok(())
-        }
+            Ok(()) },
         Action::Dependents(name) => {
-            let start = types::parse_name(&name);
             let lp = LeanPath::new(&args)?;
-            let Loader{map:_, order} = Loader::load(&lp, start)?;
+            let Loader{map:_, order} = Loader::load(&lp, name.clone())?;
             for s in order { println!("{}", s) }
-            Ok(())
-        }
+            Ok(()) },
+        Action::Test(name) => {
+            let lp = LeanPath::new(&args)?;
+            let mut load = Loader::load(&lp, name.clone())?;
+            let table = parser::get_token_table(&mut load)?;
+            for tk in &table {
+                println!("{:?}", tk);
+            }
+            Ok(()) },
         Action::None => args.print_usage_and_exit(1)
     }
 }

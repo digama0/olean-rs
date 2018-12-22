@@ -91,7 +91,7 @@ impl<S> Deserialize<String> for S {
             let c: u8 = ().read(d)?;
             if c == 0 {
                 return String::from_utf8(vec)
-                    .map_err(|s| invalid(&format!("bad utf8, got {}", s)))
+                    .map_err(|s| invalid(&format!("bad utf8, got {:?}", s.into_bytes())))
             } else { vec.push(c) }
         }
     }
@@ -689,7 +689,7 @@ pub fn read_olean_modifications(mut d: &[u8]) -> io::Result<Vec<Modification>> {
             "native_module_path" => Modification::NativeModulePath(ds.read(&mut d)?),
             "key_eqv" => Modification::KeyEquivalence(ds.read(&mut d)?, ds.read(&mut d)?),
 
-            "TK" => Modification::Token{tk: ds.read(&mut d)?, prec: ds.read(&mut d)?},
+            "TK" => Modification::Token(Token{tk: ds.read(&mut d)?, prec: ds.read(&mut d)?}),
             "NOTA" => Modification::Notation(ds.read(&mut d)?),
             "ATTR" => Modification::Attr(ds.read(&mut d)?),
             "class" => Modification::Class(ds.read(&mut d)?),
