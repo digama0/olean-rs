@@ -3,20 +3,38 @@ use std::fmt;
 use num::bigint::BigInt;
 
 pub type Name = Rc<Name2>;
-#[derive(PartialEq, Eq)] pub enum Name2 {
+#[derive(PartialEq, Eq, Hash)] pub enum Name2 {
     Anon,
     Str(Name, String),
     Num(Name, u32)
 }
 
-pub fn is_anon(n: &Name2) -> bool {
-    if let Name2::Anon = n { true } else { false }
-}
+impl Name2 {
+    pub fn is_anon(&self) -> bool {
+        if let Name2::Anon = self { true } else { false }
+    }
 
-pub fn to_simple_name(n: &Name2) -> Option<&str> {
-    if let Name2::Str(n2, ref s) = n {
-        if is_anon(n2) {Some(s)} else {None}
-    } else {None}
+    pub fn to_simple_name(&self) -> Option<&str> {
+        if let Name2::Str(n2, ref s) = self {
+            if n2.is_anon() {Some(s)} else {None}
+        } else {None}
+    }
+
+    pub fn parent(&self) -> Name {
+        match self {
+            Name2::Anon => Rc::new(Name2::Anon),
+            Name2::Str(n, _) => n.clone(),
+            Name2::Num(n, _) => n.clone()
+        }
+    }
+
+    pub fn append_to(&self, lhs: Name) -> Name {
+        match self {
+            Name2::Anon => lhs,
+            Name2::Str(n, s) => Rc::new(Name2::Str(n.append_to(lhs), s.clone())),
+            Name2::Num(n, s) => Rc::new(Name2::Num(n.append_to(lhs), s.clone()))
+        }
+    }
 }
 
 pub fn mk_name(ns: &[&str]) -> Name {
@@ -26,15 +44,21 @@ pub fn mk_name(ns: &[&str]) -> Name {
     })
 }
 
+pub fn parse_name(ns: &str) -> Name {
+    let mut n = Rc::new(Name2::Anon);
+    for s in ns.split('.') { n = Rc::new(Name2::Str(n, s.to_string())); }
+    n
+}
+
 impl fmt::Display for Name2 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Name2::Anon => write!(f, "[anonymous]"),
             Name2::Str(n, s) =>
-                if is_anon(n) { f.write_str(&s) }
+                if n.is_anon() { f.write_str(&s) }
                 else { write!(f, "{}.{}", n, s) },
             Name2::Num(ref n, s) =>
-                if is_anon(n) { write!(f, "{}", s) }
+                if n.is_anon() { write!(f, "{}", s) }
                 else { write!(f, "{}.{}", n, s) }
         }
     }
@@ -139,6 +163,18 @@ pub fn check_macro(m: &MacroDef, args: &Vec<Expr>) -> bool {
 #[derive(Debug)] pub struct ModuleName {
     pub relative: Option<u32>,
     pub name: Name
+}
+
+impl ModuleName {
+    pub fn resolve(&self, mut base: Name) -> Name {
+        match &self.relative {
+            None => self.name.clone(),
+            Some(n) => {
+                for _ in 0..n+1 { base = base.parent() }
+                self.name.append_to(base)
+            }
+        }
+    }
 }
 
 #[derive(Debug)] pub struct ExportDecl {

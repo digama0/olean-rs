@@ -366,7 +366,7 @@ impl<S> Deserialize<ElabStrategy> for S {
 }
 
 fn read_attr_ext<T: io::Read>(s: &Deserializer, d: &mut T, n: Name) -> io::Result<AttrData> {
-    Ok(match to_simple_name(&n) {
+    Ok(match n.to_simple_name() {
         Some("_refl_lemma") => AttrData::Basic,
         Some("simp") => AttrData::Basic,
         Some("wrapper_eq") => AttrData::Basic,
