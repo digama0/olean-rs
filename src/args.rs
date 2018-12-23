@@ -25,6 +25,7 @@ fn find_it<P>(exe_name: P) -> Option<PathBuf>
 pub enum Action {
     Dump(PathBuf),
     Dependents(types::Name),
+    Scan(types::Name),
     Test(types::Name),
     None
 }
@@ -57,6 +58,7 @@ pub fn args() -> io::Result<Args> {
     opts.optflag("L", "", "give location of lean library");
     opts.optopt("d", "deps", "view all dependents of the target file", "lean.name");
     opts.optopt("p", "", "set current working directory", "DIR");
+    opts.optopt("s", "", "test scanner", "lean.name");
     opts.optopt("t", "", "testing", "lean.name");
     opts.optflag("h", "help", "print this help menu");
     let matches = opts.parse(&args[1..]).unwrap();
@@ -74,6 +76,9 @@ pub fn args() -> io::Result<Args> {
     }
     if let Some(s) = matches.opt_str("d") {
         args.act = Action::Dependents(types::parse_name(&s))
+    }
+    if let Some(s) = matches.opt_str("s") {
+        args.act = Action::Scan(types::parse_name(&s))
     }
     if let Some(s) = matches.opt_str("t") {
         args.act = Action::Test(types::parse_name(&s))
