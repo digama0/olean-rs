@@ -1,8 +1,11 @@
 use std::rc::Rc;
 use std::fmt;
+use std::fmt::{Debug, Display, Formatter};
+use std::ops::Deref;
 use num::bigint::BigInt;
 
-pub type Name = Rc<Name2>;
+#[derive(PartialEq, Eq, Hash, Clone)] pub struct Name(Rc<Name2>);
+
 #[derive(PartialEq, Eq, Hash)] pub enum Name2 {
     Anon,
     Str(Name, String),
@@ -16,42 +19,72 @@ impl Name2 {
 
     pub fn to_simple_name(&self) -> Option<&str> {
         if let Name2::Str(n2, ref s) = self {
-            if n2.is_anon() {Some(s)} else {None}
+            if n2.0.is_anon() {Some(s)} else {None}
         } else {None}
     }
 
     pub fn parent(&self) -> Name {
         match self {
-            Name2::Anon => Rc::new(Name2::Anon),
+            Name2::Anon => Name::anon(),
             Name2::Str(n, _) => n.clone(),
             Name2::Num(n, _) => n.clone()
         }
     }
+}
 
-    pub fn append_to(&self, lhs: Name) -> Name {
-        match self {
-            Name2::Anon => lhs,
-            Name2::Str(n, s) => Rc::new(Name2::Str(n.append_to(lhs), s.clone())),
-            Name2::Num(n, s) => Rc::new(Name2::Num(n.append_to(lhs), s.clone()))
+impl Name {
+    pub fn new(n: Name2) -> Name { Name(Rc::new(n)) }
+    pub fn anon() -> Name { Name::new(Name2::Anon) }
+    pub fn is_anon(&self) -> bool { self.0.is_anon() }
+    pub fn parent(&self) -> Name { self.0.parent() }
+    pub fn str(self, s: String) -> Name { Name::new(Name2::Str(self, s)) }
+    pub fn num(self, s: u32) -> Name { Name::new(Name2::Num(self, s)) }
+
+    pub fn append(self, other: &Name2) -> Name {
+        match other {
+            Name2::Anon => self,
+            Name2::Str(n, s) => self.append(n).str(s.clone()),
+            Name2::Num(n, s) => self.append(n).num(s.clone())
         }
     }
 }
 
-pub fn mk_name(ns: &[&str]) -> Name {
-    Rc::new(match ns.split_last() {
-        None => Name2::Anon,
-        Some((&s, ref ns)) => Name2::Str(mk_name(ns), String::from(s))
-    })
+impl Deref for Name {
+    type Target = Name2;
+    fn deref(&self) -> &Name2 { self.0.deref() }
+}
+
+impl From<&[&str]> for Name {
+    fn from(ns: &[&str]) -> Name {
+        match ns.split_last() {
+            None => Name::anon(),
+            Some((&s, ns)) => Name::str(ns.into(), String::from(s))
+        }
+    }
+}
+
+impl From<&str> for Name {
+    fn from(n: &str) -> Name { Name::str(Name::anon(), String::from(n)) }
+}
+
+macro_rules! name {
+    [$e:expr; $x:ident] => {
+        Name::str($e, String::from(stringify!($x)))
+    };
+    [$e:expr; $x:ident . $($rest:tt).*] => {
+        name![Name::str($e, String::from(stringify!($x))); $($rest).*]
+    };
+    [$($ns:tt).*] => { name![Name::anon(); $($ns).*] };
 }
 
 pub fn parse_name(ns: &str) -> Name {
-    let mut n = Rc::new(Name2::Anon);
-    for s in ns.split('.') { n = Rc::new(Name2::Str(n, s.to_string())); }
+    let mut n = Name::anon();
+    for s in ns.split('.') { n = Name::str(n, s.to_string()) }
     n
 }
 
-impl fmt::Display for Name2 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl Display for Name2 {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Name2::Anon => write!(f, "[anonymous]"),
             Name2::Str(n, s) =>
@@ -64,10 +97,16 @@ impl fmt::Display for Name2 {
     }
 }
 
-impl fmt::Debug for Name2 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
+impl Debug for Name2 {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { Display::fmt(self, f) }
+}
+
+impl Display for Name {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { Display::fmt(self.deref(), f) }
+}
+
+impl fmt::Debug for Name {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { Debug::fmt(self.deref(), f) }
 }
 
 pub type Level = Rc<Level2>;
@@ -171,7 +210,7 @@ impl ModuleName {
             None => self.name.clone(),
             Some(n) => {
                 for _ in 0..n+1 { base = base.parent() }
-                self.name.append_to(base)
+                base.append(&self.name)
             }
         }
     }

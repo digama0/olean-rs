@@ -1,5 +1,5 @@
+#[macro_use] mod types;
 mod deserialize;
-mod types;
 mod hasher;
 mod args;
 mod leanpath;

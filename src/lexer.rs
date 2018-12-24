@@ -1,12 +1,11 @@
 use std::io;
 use std::fs::File;
-use std::rc::Rc;
 use std::mem;
 use std::path::Path;
 use num::{rational::Ratio, BigInt, BigRational};
 use unicode_reader::CodePoints;
 use crate::tokens::TokenTable;
-use crate::types::{KToken, Name, Name2};
+use crate::types::{KToken, Name};
 
 fn is_letter_like_unicode(c: char) -> bool {
     ('α' <= c && c <= 'ω' && c != 'λ') ||    // Lower greek, except lambda
@@ -270,7 +269,7 @@ impl<T: Iterator<Item = io::Result<char>>> LexerCore<T> {
         let mut cs = String::new();
 
         fn cs_to_name(cs: &str) -> Name {
-            let mut n: Name = Rc::new(Name2::Anon);
+            let mut n: Name = Name::anon();
             let mut part = String::new();
             let mut escaped = false;
             for c in cs.chars() {
@@ -278,11 +277,11 @@ impl<T: Iterator<Item = io::Result<char>>> LexerCore<T> {
                     '«' => escaped = true,
                     '»' => escaped = false,
                     '.' if !escaped =>
-                        n = Rc::new(Name2::Str(n, mem::replace(&mut part, String::new()))),
+                        n = n.str(mem::replace(&mut part, String::new())),
                     c => part.push(c)
                 }
             }
-            Rc::new(Name2::Str(n, part))
+            n.str(part)
         }
 
         let mut id_sz = 0;

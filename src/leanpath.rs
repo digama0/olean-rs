@@ -1,5 +1,4 @@
 use std::io;
-use std::rc::Rc;
 use std::io::{BufRead, BufReader};
 use std::env;
 use std::path::{Path, PathBuf};
@@ -61,6 +60,6 @@ impl LeanPath {
 
     pub fn find(&self, n: Name, ext: &str) -> Option<(Name, PathBuf)> {
         self.find_inner(n.clone(), ext).or_else(||
-            self.find_inner(Rc::new(Name2::Str(n, "default".to_string())), ext))
+            self.find_inner(name![n; default], ext))
     }
 }

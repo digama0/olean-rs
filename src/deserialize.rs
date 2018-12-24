@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use byteorder::{ReadBytesExt, BigEndian};
 use num_traits::cast::FromPrimitive;
 use num::bigint::BigInt;
-use crate::types::*;
+#[macro_use] use crate::types::*;
 use crate::hasher;
 
 fn invalid(s: &str) -> io::Error {
@@ -145,11 +145,11 @@ impl Deserialize<Name> for ObjectReader<Name> {
     fn read<T: io::Read>(&self, d: &mut T) -> io::Result<Name> {
         ObjectReader::read_core(self, d, |d, n| {
             match n {
-                0 => Ok(Rc::new(Name2::Anon)),
-                1 => Ok(Rc::new(Name2::Str(Rc::new(Name2::Anon), self.read(d)?))),
-                2 => Ok(Rc::new(Name2::Num(Rc::new(Name2::Anon), self.read(d)?))),
-                3 => Ok(Rc::new(Name2::Str(self.read(d)?, self.read(d)?))),
-                4 => Ok(Rc::new(Name2::Num(self.read(d)?, self.read(d)?))),
+                0 => Ok(Name::anon()),
+                1 => Ok(Name::str(Name::anon(), self.read(d)?)),
+                2 => Ok(Name::num(Name::anon(), self.read(d)?)),
+                3 => Ok(Name::str(self.read(d)?, self.read(d)?)),
+                4 => Ok(Name::num(self.read(d)?, self.read(d)?)),
                 _ => throw(&format!("bad name {}", n))
             }
         })
@@ -401,7 +401,7 @@ fn read_attr_ext<T: io::Read>(s: &Deserializer, d: &mut T, n: Name) -> io::Resul
         Some("unify") => AttrData::Basic,
         Some("recursor") => AttrData::Indices(().read(d)?),
         _ =>
-            if n == mk_name(&["_simp", "sizeof"]) { AttrData::Basic }
+            if n == name![_simp.sizeof] { AttrData::Basic }
             else { AttrData::User(s.read(d)?) }
     })
 }
