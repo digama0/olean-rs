@@ -3,7 +3,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 use getopts::Options;
 use std::process::exit;
-use super::types;
+use crate::types;
 
 fn find_it<P>(exe_name: P) -> Option<PathBuf>
     where P: AsRef<Path> {

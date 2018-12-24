@@ -1,9 +1,9 @@
 use std::collections::hash_map::HashMap;
 use std::io;
 use std::fs::File;
-use super::types::*;
-use super::deserialize;
-use super::leanpath::*;
+use crate::types::*;
+use crate::deserialize;
+use crate::leanpath::*;
 
 pub struct Loader {
     pub map: HashMap<Name, (OLean, Option<Vec<Modification>>)>,

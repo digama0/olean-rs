@@ -4,6 +4,7 @@ mod hasher;
 mod args;
 mod leanpath;
 mod loader;
+mod tokens;
 mod scanner;
 // mod flet;
 #[allow(dead_code)] mod trie;
@@ -40,7 +41,7 @@ fn main() -> io::Result<()> {
             let lp = LeanPath::new(&args)?;
             let mut load = Loader::load(&lp, name.clone())?;
             let n2 = load.order.pop().unwrap();
-            let table = scanner::get_token_table(&mut load)?;
+            let table = tokens::token_table(&mut load)?;
             let path = lp.find(n2, "lean").unwrap().1;
             let scan = scanner::from_file(&path, table)?;
             for tk in scan {
@@ -50,7 +51,7 @@ fn main() -> io::Result<()> {
         Action::Test(name) => {
             let lp = LeanPath::new(&args)?;
             let mut load = Loader::load(&lp, name.clone())?;
-            let table = scanner::get_token_table(&mut load)?;
+            let table = tokens::token_table(&mut load)?;
             for tk in &table {
                 println!("{:?}", tk);
             }

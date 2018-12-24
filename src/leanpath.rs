@@ -4,8 +4,8 @@ use std::io::{BufRead, BufReader};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::fs::File;
-use super::args;
-use super::types::{Name, Name2};
+use crate::args;
+use crate::types::{Name, Name2};
 
 fn get_leanpkg_path_file() -> Option<PathBuf> {
     let mut path: &Path = &env::current_dir().ok()?;
