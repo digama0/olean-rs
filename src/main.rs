@@ -6,6 +6,7 @@ mod leanpath;
 mod loader;
 mod scanner;
 // mod flet;
+#[allow(dead_code)] mod trie;
 
 use std::io;
 use std::fs::File;
@@ -15,6 +16,8 @@ use self::loader::Loader;
 
 #[macro_use] extern crate num_derive;
 extern crate getopts;
+extern crate endian_type;
+extern crate nibble_vec;
 
 fn main() -> io::Result<()> {
     let args = args()?;

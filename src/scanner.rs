@@ -3,9 +3,9 @@ use std::fs::File;
 use std::rc::Rc;
 use std::mem;
 use std::path::Path;
-use radix_trie::{Trie, TrieCommon};
 use num::{rational::Ratio, BigInt, BigRational};
 use unicode_reader::CodePoints;
+use super::trie::{Trie, TrieCommon, iter::Values};
 use super::loader::Loader;
 use super::types::{Modification, Token, Name, Name2};
 
@@ -100,7 +100,7 @@ impl TokenTable {
 
 impl<'a> IntoIterator for &'a TokenTable {
     type Item = &'a Token;
-    type IntoIter = radix_trie::iter::Values<'a, String, Token>;
+    type IntoIter = Values<'a, String, Token>;
     fn into_iter(self) -> Self::IntoIter { self.0.values() }
 }
 
@@ -395,7 +395,7 @@ impl<T: Iterator<Item = io::Result<char>>> Scanner<T> {
         println!("{:?}", cs);
         let mut best = None;
 
-        for n in 1..cs.len() {
+        for n in 1..cs.len()+1 {
             println!("{:?}", (&cs, n, &best));
             match self.try_prefix(&cs[0..n]) {
                 Ok(tk) => best = Some((tk, n)),
@@ -417,6 +417,7 @@ impl<T: Iterator<Item = io::Result<char>>> Scanner<T> {
             Some((Token {tk, prec: None}, n)) => (SToken::CommandKeyword(tk), n),
             Some((Token {tk, prec: Some(prec)}, n)) => (SToken::Keyword(tk, prec), n)
         };
+        println!("{:?}", (&cs, &tk, n));
         if n == 0 {return throw("unexpected token")}
         for c in cs.split_at(n).1.chars().rev().skip(1) { self.pushback(c) }
         Ok(tk)
