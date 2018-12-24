@@ -340,7 +340,7 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
         }
     }
 
-    fn munch<'a>(&mut self, tt: &'a TokenTable, cs: &mut String) -> io::Result<Option<&'a Token>> {
+    fn munch<'a>(&mut self, tt: &'a TokenTable, cs: &mut String) -> io::Result<Option<(&'a Token, usize)>> {
         let mut res = tt.0.last_ancestor_iter().next(cs);
         loop {
             match res {
@@ -392,14 +392,14 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
         }
         let id_sz = cs.len();
         cs.push(self.curr);
-        println!("{:?}", cs);
 
-        let (tk, n) = match self.munch(tt, &mut cs)? {
+        let (tk, n) = match self.munch(tt, &mut cs)?.and_then(|(tk, n)| {
+            if n/2 < id_sz {None} else {Some((tk, n/2))}
+        }) {
             None => (SToken::Identifier(cs_to_name(&cs[0..id_sz])), id_sz),
-            Some(Token {tk, prec: None}) => (SToken::CommandKeyword(tk.clone()), tk.len()),
-            Some(Token {tk, prec: Some(prec)}) => (SToken::Keyword(tk.clone(), *prec), tk.len())
+            Some((Token {tk, prec: None}, n)) => (SToken::CommandKeyword(tk.clone()), n),
+            Some((Token {tk, prec: Some(prec)}, n)) => (SToken::Keyword(tk.clone(), *prec), n)
         };
-        println!("{:?}", (&cs, &tk, n));
         if n == 0 {return throw("unexpected token")}
         for c in cs.split_at(n).1.chars().rev().skip(1) { self.pushback(c) }
         Ok(tk)
