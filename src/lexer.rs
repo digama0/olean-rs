@@ -37,13 +37,31 @@ fn is_id_rest(c: char) -> bool {
     Identifier(Name),
     Numeral(BigInt),
     Decimal(BigRational),
-    String(String),
+    StringTk(String),
     Char(char),
     QuotedSymbol(String),
     DocBlock(bool, String),
     FieldNum(u32),
     FieldName(Name),
     Eof
+}
+
+impl Token {
+    pub fn is_tk(&self, s: &str) -> bool {
+        match self {
+            Token::Keyword(s2, _) => s == s2,
+            Token::CommandKeyword(s2) => s == s2,
+            _ => false
+        }
+    }
+
+    pub fn tk(&self) -> Option<&str> {
+        match self {
+            Token::Keyword(s, _) => Some(s),
+            Token::CommandKeyword(s) => Some(s),
+            _ => None
+        }
+    }
 }
 
 fn invalid(s: &str) -> io::Error { io::Error::new(io::ErrorKind::InvalidData, s) }
@@ -194,7 +212,7 @@ impl<T: Iterator<Item = io::Result<char>>> LexerCore<T> {
         let mut s = String::new(); self.next()?;
         loop {
             if self.curr == '\"' {
-                self.next()?; return Ok(Token::String(s)) }
+                self.next()?; return Ok(Token::StringTk(s)) }
             s.push(self.read_single_char("unexpected end of string")?);
         }
     }
@@ -356,7 +374,13 @@ impl<T: io::Read> Lexer<T> {
     pub fn curr(&self) -> char { self.data.curr }
 
     pub fn lex(&mut self) -> io::Result<Token> {
-        self.data.lex(&self.token_table)
+        let tk = self.data.lex(&self.token_table);
+        println!("lex {:?}", tk);
+        tk
+    }
+
+    pub fn allow_field_notation(&mut self, flag: bool) -> bool {
+        mem::replace(&mut self.data.allow_field_notation, flag)
     }
 }
 

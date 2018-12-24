@@ -69,10 +69,10 @@ impl From<&str> for Name {
 
 macro_rules! name {
     [$e:expr; $x:ident] => {
-        Name::str($e, String::from(stringify!($x)))
+        Name::str($e, stringify!($x).to_string())
     };
     [$e:expr; $x:ident . $($rest:tt).*] => {
-        name![Name::str($e, String::from(stringify!($x))); $($rest).*]
+        name![Name::str($e, stringify!($x).to_string()); $($rest).*]
     };
     [$($ns:tt).*] => { name![Name::anon(); $($ns).*] };
 }
@@ -199,7 +199,7 @@ pub fn check_macro(m: &MacroDef, args: &Vec<Expr>) -> bool {
     }
 }
 
-#[derive(Debug)] pub struct ModuleName {
+pub struct ModuleName {
     pub relative: Option<u32>,
     pub name: Name
 }
@@ -214,6 +214,16 @@ impl ModuleName {
             }
         }
     }
+}
+
+impl Display for ModuleName {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}{}", ".".repeat(self.relative.map_or(0, |n| (n+1) as usize)), self.name)
+    }
+}
+
+impl Debug for ModuleName {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { Display::fmt(self, f) }
 }
 
 #[derive(Debug)] pub struct ExportDecl {

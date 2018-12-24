@@ -52,7 +52,7 @@ static ALIASES: &[(&str, &str, Option<u32>)] = &[
 #[derive(Debug)] pub struct TokenTable(Trie<KToken>);
 
 impl TokenTable {
-    fn new() -> TokenTable {
+    pub fn new() -> TokenTable {
         let mut table = TokenTable(Trie::new());
         for (s, prec) in TOKENS {
             table.insert(KToken{tk: s.to_string(), prec: Some(*prec)}) }

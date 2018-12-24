@@ -6,7 +6,7 @@ mod leanpath;
 mod loader;
 mod tokens;
 mod lexer;
-// mod flet;
+mod rough_parser;
 #[allow(dead_code)] mod trie;
 
 use std::io;
@@ -37,24 +37,25 @@ fn main() -> io::Result<()> {
             let Loader{map:_, order} = Loader::load(&lp, name.clone())?;
             for s in order { println!("{}", s) }
             Ok(()) },
-        Action::Scan(name) => {
+        Action::Lex(name) => {
             let lp = LeanPath::new(&args)?;
             let mut load = Loader::load(&lp, name.clone())?;
             let n2 = load.order.pop().unwrap();
             let table = tokens::token_table(&mut load)?;
             let path = lp.find(n2, "lean").unwrap().1;
-            let scan = lexer::from_file(&path, table)?;
-            for tk in scan {
+            let lex = lexer::from_file(&path, table)?;
+            for tk in lex {
                 println!("{:?}", tk?)
             }
             Ok(()) },
         Action::Test(name) => {
             let lp = LeanPath::new(&args)?;
-            let mut load = Loader::load(&lp, name.clone())?;
-            let table = tokens::token_table(&mut load)?;
-            for tk in &table {
-                println!("{:?}", tk);
-            }
+            let table = tokens::TokenTable::new();
+            let path = lp.find(name.clone(), "lean").unwrap().1;
+            let lex = lexer::from_file(&path, table)?;
+            let mut parser = rough_parser::RoughParser::new(lex)?;
+            let rl = parser.parse()?;
+            println!("{:?}", rl);
             Ok(()) },
         Action::None => args.print_usage_and_exit(1)
     }
