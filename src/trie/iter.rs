@@ -58,15 +58,17 @@ impl<'a, V> Iterator for Keys<'a, V> {
 
 /// Iterator over the values of a Trie.
 pub struct Values<'a, V: 'a> {
-    inner: Map<Iter<'a, V>, ValueMapFn<'a, V>>,
+    root: &'a TrieNode<V>,
+    root_visited: bool,
+    stack: Vec<RawChildIter<'a, V>>,
 }
 
-type ValueMapFn<'a, V> = fn((NibbleVec, &'a V)) -> &'a V;
-
 impl<'a, V> Values<'a, V> {
-    pub fn new(iter: Iter<'a, V>) -> Values<'a, V> {
+    pub fn new(root: &'a TrieNode<V>) -> Values<'a, V> {
         Values {
-            inner: iter.map(|kv| kv.1),
+            root,
+            root_visited: false,
+            stack: vec![],
         }
     }
 }
@@ -74,8 +76,35 @@ impl<'a, V> Values<'a, V> {
 impl<'a, V> Iterator for Values<'a, V> {
     type Item = &'a V;
 
-    fn next(&mut self) -> Option<&'a V> {
-        self.inner.next()
+    fn next(&mut self) -> Option<Self::Item> {
+        // Visit each node as it is reached from its parent (with special root handling).
+        if !self.root_visited {
+            self.root_visited = true;
+            self.stack.push(self.root.children.iter());
+            if let Some(v) = self.root.value() {
+                return Some(v);
+            }
+        }
+
+        loop {
+            let action = match self.stack.last_mut() {
+                Some(stack_top) => stack_top.next(),
+                None => return None,
+            };
+
+            match action {
+                Some(Some(trie)) => {
+                    self.stack.push(trie.children.iter());
+                    if let Some(v) = trie.value() {
+                        return Some(v);
+                    }
+                }
+                Some(None) => (),
+                None => {
+                    self.stack.pop();
+                }
+            }
+        }
     }
 }
 

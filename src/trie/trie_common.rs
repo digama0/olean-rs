@@ -42,7 +42,7 @@ where
 
     /// Return an iterator over the values of the Trie.
     fn values(self) -> Values<'a, V> {
-        Values::new(self.iter())
+        Values::new(self.trie_node())
     }
 
     /// Return an iterator over the child subtries of this node.

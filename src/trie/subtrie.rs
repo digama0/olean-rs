@@ -7,13 +7,13 @@ impl<'a, V> SubTrie<'a, V> {
     ///
     /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
     /// form *must* match those for the key type
-    pub fn get<K: TrieKey>(&self, key: &K) -> SubTrieResult<&V> {
+    pub fn get<K: TrieKey + ?Sized>(&self, key: &K) -> SubTrieResult<&V> {
         subtrie_get(&self.prefix, self.node, key)
     }
 
     /// Move the view to a subkey. The new view will be looking at the original key with
     /// the encoding of this subkey appended.
-    pub fn to_subkey<K: TrieKey>(self, subkey: &K) -> Option<SubTrie<'a, V>> {
+    pub fn to_subkey<K: TrieKey + ?Sized>(self, subkey: &K) -> Option<SubTrie<'a, V>> {
         self.to_subkey_nv(&subkey.encode())
     }
 
@@ -31,7 +31,7 @@ impl<'a, V> SubTrie<'a, V> {
     }
 }
 
-fn subtrie_get<'a, K: TrieKey, V>(
+fn subtrie_get<'a, K: TrieKey + ?Sized, V>(
     prefix: &NibbleVec,
     node: &'a TrieNode<V>,
     key: &K,
@@ -56,13 +56,13 @@ impl<'a, V> SubTrieMut<'a, V> {
     ///
     /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
     /// form *must* match those for the key type
-    pub fn get<K: TrieKey>(&self, key: &K) -> SubTrieResult<&V> {
+    pub fn get<K: TrieKey + ?Sized>(&self, key: &K) -> SubTrieResult<&V> {
         subtrie_get(&self.prefix, &*self.node, key)
     }
 
     /// Move the view to a subkey. The new view will be looking at the original key with
     /// the encoding of this subkey appended.
-    pub fn to_subkey<K: TrieKey>(self, subkey: &K) -> Option<SubTrieMut<'a, V>> {
+    pub fn to_subkey<K: TrieKey + ?Sized>(self, subkey: &K) -> Option<SubTrieMut<'a, V>> {
         self.to_subkey_nv(&subkey.encode())
     }
 
@@ -81,7 +81,7 @@ impl<'a, V> SubTrieMut<'a, V> {
     }
 
     /// Insert a value in this subtrie. The key should be an extension of this subtrie's key.
-    pub fn insert<K: TrieKey>(&mut self, key: &K, value: V) -> SubTrieResult<V> {
+    pub fn insert<K: TrieKey + ?Sized>(&mut self, key: &K, value: V) -> SubTrieResult<V> {
         let key_enc = key.encode();
         let previous = match match_keys(0, &self.prefix, &key_enc) {
             KeyMatch::Full => self.node.replace_value(value),
@@ -101,7 +101,7 @@ impl<'a, V> SubTrieMut<'a, V> {
     }
 
     /// Remove a value from this subtrie. The key should be an extension of this subtrie's key.
-    pub fn remove<K: TrieKey>(&mut self, key: &K) -> SubTrieResult<V> {
+    pub fn remove<K: TrieKey + ?Sized>(&mut self, key: &K) -> SubTrieResult<V> {
         self.remove_nv(&key.encode())
     }
 

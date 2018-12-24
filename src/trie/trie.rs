@@ -164,7 +164,7 @@ impl<V> Trie<V> {
     /// Take a function `f` and apply it to the value stored at `key`.
     ///
     /// If no value is stored at `key`, store `default`.
-    pub fn map_with_default<K: TrieKey, F: Fn(&mut V)>(&mut self, key: &K, f: F, default: V) {
+    pub fn map_with_default<K: TrieKey + ?Sized, F: Fn(&mut V)>(&mut self, key: &K, f: F, default: V) {
         if let Some(v) = self.get_mut(key) {
             f(v);
             return;
