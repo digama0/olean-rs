@@ -9,6 +9,7 @@
 pub use self::keys::TrieKey;
 pub use nibble_vec::NibbleVec;
 pub use self::trie_common::TrieCommon;
+pub use self::last_ancestor::LastAncestorIter;
 use self::trie_node::TrieNode;
 
 pub mod iter;
@@ -18,6 +19,7 @@ mod traversal;
 mod trie;
 mod trie_common;
 mod trie_node;
+pub mod last_ancestor;
 
 const BRANCH_FACTOR: usize = 16;
 

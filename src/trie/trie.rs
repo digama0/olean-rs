@@ -1,6 +1,6 @@
 use super::traversal::DescendantResult::*;
 use super::trie_node::TrieNode;
-use super::{NibbleVec, SubTrie, SubTrieMut, Trie, TrieCommon, TrieKey};
+use super::{NibbleVec, SubTrie, SubTrieMut, Trie, TrieCommon, TrieKey, LastAncestorIter};
 
 impl<V> Trie<V> {
     /// Create an empty Trie.
@@ -159,6 +159,15 @@ impl<V> Trie<V> {
             };
             node.as_subtrie(prefix)
         })
+    }
+
+    /// Return a stream consumer that searches for the longest key in the trie that
+    /// is an initial sequence of the stream, and has a value.
+    ///
+    /// Use `LastAncestorIter::next` and `LastAncestorIter::finish` to input key data
+    /// to the iterator.
+    pub fn last_ancestor_iter(&self) -> LastAncestorIter<V> {
+        LastAncestorIter::new(&self.node)
     }
 
     /// Take a function `f` and apply it to the value stored at `key`.
