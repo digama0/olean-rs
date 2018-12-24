@@ -119,20 +119,6 @@ pub fn get_token_table(load: &mut Loader) -> io::Result<TokenTable> {
     Ok(table)
 }
 
-pub struct Scanner<T: Iterator<Item = io::Result<char>>> {
-    source: T,
-    token_table: TokenTable,
-    pushback: Vec<char>,
-    curr: char,
-    in_notation: bool,
-    allow_field_notation: bool
-}
-
-pub type FileScanner = Scanner<CodePoints<io::Bytes<io::BufReader<File>>>>;
-pub fn from_file(path: &Path, token_table: TokenTable) -> io::Result<FileScanner> {
-    Scanner::new(CodePoints::from(io::BufReader::new(File::open(path)?)), token_table)
-}
-
 #[derive(Debug)] pub enum SToken {
     Keyword(String, u32),
     CommandKeyword(String),
@@ -151,9 +137,15 @@ pub fn from_file(path: &Path, token_table: TokenTable) -> io::Result<FileScanner
 fn invalid(s: &str) -> io::Error { io::Error::new(io::ErrorKind::InvalidData, s) }
 fn throw<A>(s: &str) -> io::Result<A> { Err(invalid(s)) }
 
-enum TryPrefix { Done, Next }
+struct ScannerCore<T: Iterator<Item = io::Result<char>>> {
+    source: T,
+    pushback: Vec<char>,
+    curr: char,
+    in_notation: bool,
+    allow_field_notation: bool
+}
 
-impl<T: Iterator<Item = io::Result<char>>> Scanner<T> {
+impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
     fn next(&mut self) -> io::Result<char> {
         self.curr =
             if let Some(pb) = self.pushback.pop() {pb}
@@ -162,9 +154,9 @@ impl<T: Iterator<Item = io::Result<char>>> Scanner<T> {
         Ok(self.curr)
     }
 
-    pub fn new(mut source: T, token_table: TokenTable) -> io::Result<Self> {
+    pub fn new(mut source: T) -> io::Result<Self> {
         let curr = if let Some(ch) = source.next() {ch?} else {'\0'};
-        Ok(Scanner {source, token_table, pushback: Vec::new(),
+        Ok(ScannerCore {source, pushback: Vec::new(),
             curr, in_notation: false, allow_field_notation: true})
     }
 
@@ -347,16 +339,24 @@ impl<T: Iterator<Item = io::Result<char>>> Scanner<T> {
             self.next()?;
         }
     }
-    // TODO: this is really inefficient use of the API
-    fn try_prefix(&mut self, cs: &str) -> Result<Token, TryPrefix> {
-        println!("try {:?}", cs);
-        let subtrie = self.token_table.0.get_raw_descendant(cs).ok_or(TryPrefix::Done)?;
-        println!("trie {:?}", subtrie);
-        subtrie.value().cloned().ok_or_else(||
-            if subtrie.is_empty() {TryPrefix::Done} else {TryPrefix::Next})
+
+    fn munch<'a>(&mut self, tt: &'a TokenTable, cs: &mut String) -> io::Result<Option<&'a Token>> {
+        let mut res = tt.0.last_ancestor_iter().next(cs);
+        loop {
+            match res {
+                Ok(tk) => return Ok(tk),
+                Err(iter) => {
+                    let len = cs.len();
+                    let c = self.next()?;
+                    if c == '\0' {return Ok(iter.finish())}
+                    cs.push(c);
+                    res = iter.next(&cs[len..]);
+                }
+            }
+        }
     }
 
-    fn read_key_cmd_id(&mut self) -> io::Result<SToken> {
+    fn read_key_cmd_id(&mut self, tt: &TokenTable) -> io::Result<SToken> {
         let mut cs = String::new();
 
         fn cs_to_name(cs: &str) -> Name {
@@ -393,29 +393,11 @@ impl<T: Iterator<Item = io::Result<char>>> Scanner<T> {
         let id_sz = cs.len();
         cs.push(self.curr);
         println!("{:?}", cs);
-        let mut best = None;
 
-        for n in 1..cs.len()+1 {
-            println!("{:?}", (&cs, n, &best));
-            match self.try_prefix(&cs[0..n]) {
-                Ok(tk) => best = Some((tk, n)),
-                Err(TryPrefix::Next) => (),
-                Err(TryPrefix::Done) => break
-            }
-        }
-        while best.is_none() {
-            cs.push(self.next()?);
-            println!("{:?} <-", cs);
-            match self.try_prefix(&cs) {
-                Ok(tk) => best = Some((tk, cs.len())),
-                Err(TryPrefix::Next) => (),
-                Err(TryPrefix::Done) => break
-            }
-        }
-        let (tk, n) = match best {
+        let (tk, n) = match self.munch(tt, &mut cs)? {
             None => (SToken::Identifier(cs_to_name(&cs[0..id_sz])), id_sz),
-            Some((Token {tk, prec: None}, n)) => (SToken::CommandKeyword(tk), n),
-            Some((Token {tk, prec: Some(prec)}, n)) => (SToken::Keyword(tk, prec), n)
+            Some(Token {tk, prec: None}) => (SToken::CommandKeyword(tk.clone()), tk.len()),
+            Some(Token {tk, prec: Some(prec)}) => (SToken::Keyword(tk.clone(), *prec), tk.len())
         };
         println!("{:?}", (&cs, &tk, n));
         if n == 0 {return throw("unexpected token")}
@@ -423,7 +405,7 @@ impl<T: Iterator<Item = io::Result<char>>> Scanner<T> {
         Ok(tk)
     }
 
-    pub fn scan(&mut self) -> io::Result<SToken> {
+    pub fn scan(&mut self, tt: &TokenTable) -> io::Result<SToken> {
         loop {
             match self.curr {
                 '\0' => return Ok(SToken::Eof),
@@ -432,7 +414,7 @@ impl<T: Iterator<Item = io::Result<char>>> Scanner<T> {
                 '`' if self.in_notation => return self.read_quoted_symbol(),
                 c if c.is_digit(10) => return self.read_number(),
                 _ => {
-                    match self.read_key_cmd_id()? {
+                    match self.read_key_cmd_id(tt)? {
                         SToken::Keyword(s, prec) => match s.as_ref() {
                             "--" => self.read_line_comment()?,
                             "/-" => self.read_block_comment()?,
@@ -447,11 +429,32 @@ impl<T: Iterator<Item = io::Result<char>>> Scanner<T> {
     }
 }
 
-impl<T: Iterator<Item = io::Result<char>>> Iterator for Scanner<T> {
+pub struct Scanner<T: io::Read> {
+    token_table: TokenTable,
+    data: ScannerCore<CodePoints<io::Bytes<T>>>
+}
+
+pub fn from_file(path: &Path, token_table: TokenTable) -> io::Result<Scanner<io::BufReader<File>>> {
+    Scanner::new(io::BufReader::new(File::open(path)?), token_table)
+}
+
+impl<T: io::Read> Scanner<T> {
+    pub fn new(source: T, token_table: TokenTable) -> io::Result<Self> {
+        Ok(Scanner {token_table, data: ScannerCore::new(CodePoints::from(source))?})
+    }
+
+    pub fn curr(&self) -> char { self.data.curr }
+
+    pub fn scan(&mut self) -> io::Result<SToken> {
+        self.data.scan(&self.token_table)
+    }
+}
+
+impl<T: io::Read> Iterator for Scanner<T> {
     type Item = io::Result<SToken>;
 
     fn next(&mut self) -> Option<io::Result<SToken>> {
-        if self.curr == '\0' {return None}
+        if self.curr() == '\0' {return None}
         match self.scan() {
             Err(err) => Some(Err(err)),
             Ok(SToken::Eof) => None,
