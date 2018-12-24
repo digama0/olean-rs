@@ -2,7 +2,7 @@
 
 use std::iter::{FilterMap, FromIterator, Map};
 use std::slice;
-use std::ops::Deref;
+use std::mem;
 
 use super::trie_node::TrieNode;
 use super::{NibbleVec, SubTrie, Trie, TrieKey};
@@ -17,15 +17,17 @@ type ChildIter<'a, V> = FilterMap<RawChildIter<'a, V>, ChildMapFn<'a, V>>;
 pub struct Iter<'a, V: 'a> {
     root: &'a TrieNode<V>,
     root_visited: bool,
-    stack: Vec<ChildIter<'a, V>>,
+    key: NibbleVec,
+    stack: Vec<(usize, RawChildIter<'a, V>)>,
 }
 
 impl<'a, V> Iter<'a, V> {
     // TODO: make this private somehow (and same for the other iterators).
     pub fn new(root: &'a TrieNode<V>) -> Iter<'a, V> {
         Iter {
-            root: root,
+            root,
             root_visited: false,
+            key: NibbleVec::new(),
             stack: vec![],
         }
     }
@@ -36,7 +38,7 @@ pub struct Keys<'a, V: 'a> {
     inner: Map<Iter<'a, V>, KeyMapFn<'a, V>>,
 }
 
-type KeyMapFn<'a, V> = fn((&'a NibbleVec, &'a V)) -> &'a NibbleVec;
+type KeyMapFn<'a, V> = fn((NibbleVec, &'a V)) -> NibbleVec;
 
 impl<'a, V> Keys<'a, V> {
     pub fn new(iter: Iter<'a, V>) -> Keys<'a, V> {
@@ -47,9 +49,9 @@ impl<'a, V> Keys<'a, V> {
 }
 
 impl<'a, V> Iterator for Keys<'a, V> {
-    type Item = &'a NibbleVec;
+    type Item = NibbleVec;
 
-    fn next(&mut self) -> Option<&'a NibbleVec> {
+    fn next(&mut self) -> Option<NibbleVec> {
         self.inner.next()
     }
 }
@@ -59,7 +61,7 @@ pub struct Values<'a, V: 'a> {
     inner: Map<Iter<'a, V>, ValueMapFn<'a, V>>,
 }
 
-type ValueMapFn<'a, V> = fn((&'a NibbleVec, &'a V)) -> &'a V;
+type ValueMapFn<'a, V> = fn((NibbleVec, &'a V)) -> &'a V;
 
 impl<'a, V> Values<'a, V> {
     pub fn new(iter: Iter<'a, V>) -> Values<'a, V> {
@@ -112,50 +114,40 @@ impl<V> TrieNode<V> {
 
         self.children.iter().filter_map(id)
     }
-
-    /// Get the key and value of a node as a pair.
-    fn kv_as_pair(&self) -> Option<(&NibbleVec, &V)> {
-        self.value.as_ref().map(|v| (&self.key, v.deref()))
-    }
-}
-
-enum IterAction<'a, V: 'a> {
-    Push(&'a TrieNode<V>),
-    Pop,
 }
 
 impl<'a, V> Iterator for Iter<'a, V> {
-    type Item = (&'a NibbleVec, &'a V);
+    type Item = (NibbleVec, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        use self::IterAction::*;
-
         // Visit each node as it is reached from its parent (with special root handling).
         if !self.root_visited {
             self.root_visited = true;
-            self.stack.push(self.root.child_iter());
-            if let Some(kv) = self.root.kv_as_pair() {
-                return Some(kv);
+            self.stack.push((self.key.len(), self.root.children.iter()));
+            self.key = self.root.key.clone();
+            if let Some(v) = self.root.value() {
+                return Some((self.key.clone(), v));
             }
         }
 
         loop {
-            let action = match self.stack.last_mut() {
-                Some(stack_top) => match stack_top.next() {
-                    Some(child) => Push(child),
-                    None => Pop,
-                },
+            let (n, action) = match self.stack.last_mut() {
+                Some((n, stack_top)) => (*n, stack_top.next()),
                 None => return None,
             };
 
             match action {
-                Push(trie) => {
-                    self.stack.push(trie.child_iter());
-                    if let Some(kv) = trie.kv_as_pair() {
-                        return Some(kv);
+                Some(Some(trie)) => {
+                    self.stack.push((n, trie.children.iter()));
+                    let old_key = mem::replace(&mut self.key, unsafe{mem::uninitialized()});
+                    self.key = old_key.join(&trie.key);
+                    if let Some(v) = trie.value() {
+                        return Some((self.key.clone(), v));
                     }
                 }
-                Pop => {
+                Some(None) => (),
+                None => {
+                    self.key.split(self.key.len() - n);
                     self.stack.pop();
                 }
             }

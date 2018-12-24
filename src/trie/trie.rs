@@ -188,7 +188,7 @@ impl<V: PartialEq> PartialEq for Trie<V> {
         }
 
         self.iter()
-            .all(|(key, value)| other.get_nv(key).map_or(false, |v| *value == *v))
+            .all(|(key, value)| other.get_nv(&key).map_or(false, |v| *value == *v))
     }
 }
 
