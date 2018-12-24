@@ -1,7 +1,7 @@
 use std::io;
 use crate::trie::{Trie, TrieCommon, iter::Values, TrieKey, LastAncestorIter};
 use crate::loader::Loader;
-use crate::types::{Modification, Token};
+use crate::types::{Modification, KToken};
 
 static MAX_PREC: u32 = 1024;
 static ARROW_PREC: u32 = 25;
@@ -49,21 +49,21 @@ static ALIASES: &[(&str, &str, Option<u32>)] = &[
     ("→", "->", Some(ARROW_PREC)), ("←", "<-", Some(0)),
     ("lemma", "theorem", None), ("def", "definition", None)];
 
-#[derive(Debug)] pub struct TokenTable(Trie<Token>);
+#[derive(Debug)] pub struct TokenTable(Trie<KToken>);
 
 impl TokenTable {
     fn new() -> TokenTable {
         let mut table = TokenTable(Trie::new());
         for (s, prec) in TOKENS {
-            table.insert(Token{tk: s.to_string(), prec: Some(*prec)}) }
+            table.insert(KToken{tk: s.to_string(), prec: Some(*prec)}) }
         for s in COMMANDS {
-            table.insert(Token{tk: s.to_string(), prec: None}) }
+            table.insert(KToken{tk: s.to_string(), prec: None}) }
         for (s1, s2, prec) in ALIASES {
-            table.0.insert(s1, Token{tk: s2.to_string(), prec: *prec}); }
+            table.0.insert(s1, KToken{tk: s2.to_string(), prec: *prec}); }
         table
     }
 
-    fn insert(&mut self, tk: Token) {
+    fn insert(&mut self, tk: KToken) {
         self.0.insert_nv(tk.tk.encode(), tk);
     }
 
@@ -71,8 +71,8 @@ impl TokenTable {
 }
 
 impl<'a> IntoIterator for &'a TokenTable {
-    type Item = &'a Token;
-    type IntoIter = Values<'a, Token>;
+    type Item = &'a KToken;
+    type IntoIter = Values<'a, KToken>;
     fn into_iter(self) -> Self::IntoIter { self.0.values() }
 }
 
@@ -91,4 +91,4 @@ pub fn token_table(load: &mut Loader) -> io::Result<TokenTable> {
     Ok(table)
 }
 
-type TokenSearch<'a> = LastAncestorIter<'a, Token>;
+type TokenSearch<'a> = LastAncestorIter<'a, KToken>;

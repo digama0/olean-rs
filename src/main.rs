@@ -5,7 +5,7 @@ mod args;
 mod leanpath;
 mod loader;
 mod tokens;
-mod scanner;
+mod lexer;
 // mod flet;
 #[allow(dead_code)] mod trie;
 
@@ -43,7 +43,7 @@ fn main() -> io::Result<()> {
             let n2 = load.order.pop().unwrap();
             let table = tokens::token_table(&mut load)?;
             let path = lp.find(n2, "lean").unwrap().1;
-            let scan = scanner::from_file(&path, table)?;
+            let scan = lexer::from_file(&path, table)?;
             for tk in scan {
                 println!("{:?}", tk?)
             }

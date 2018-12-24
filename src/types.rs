@@ -389,7 +389,7 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
     pub produce_motive: Vec<bool>
 }
 
-#[derive(Clone, Debug)] pub struct Token {
+#[derive(Clone, Debug)] pub struct KToken {
     pub tk: String,
     pub prec: Option<u32>
 }
@@ -422,7 +422,7 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
     NativeModulePath(Name),
     KeyEquivalence(Name, Name),
 
-    Token(Token),
+    Token(KToken),
     Notation(NotationEntry),
     Attr(AttrEntry),
     Class(ClassEntry),

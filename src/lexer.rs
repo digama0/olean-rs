@@ -6,7 +6,7 @@ use std::path::Path;
 use num::{rational::Ratio, BigInt, BigRational};
 use unicode_reader::CodePoints;
 use crate::tokens::TokenTable;
-use crate::types::{Token, Name, Name2};
+use crate::types::{KToken, Name, Name2};
 
 fn is_letter_like_unicode(c: char) -> bool {
     ('α' <= c && c <= 'ω' && c != 'λ') ||    // Lower greek, except lambda
@@ -32,7 +32,7 @@ fn is_id_rest(c: char) -> bool {
     is_letter_like_unicode(c) || is_sub_script_alnum_unicode(c)
 }
 
-#[derive(Debug)] pub enum SToken {
+#[derive(Debug, PartialEq)] pub enum Token {
     Keyword(String, u32),
     CommandKeyword(String),
     Identifier(Name),
@@ -50,7 +50,7 @@ fn is_id_rest(c: char) -> bool {
 fn invalid(s: &str) -> io::Error { io::Error::new(io::ErrorKind::InvalidData, s) }
 fn throw<A>(s: &str) -> io::Result<A> { Err(invalid(s)) }
 
-struct ScannerCore<T: Iterator<Item = io::Result<char>>> {
+struct LexerCore<T: Iterator<Item = io::Result<char>>> {
     source: T,
     pushback: Vec<char>,
     curr: char,
@@ -58,7 +58,7 @@ struct ScannerCore<T: Iterator<Item = io::Result<char>>> {
     allow_field_notation: bool
 }
 
-impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
+impl<T: Iterator<Item = io::Result<char>>> LexerCore<T> {
     fn next(&mut self) -> io::Result<char> {
         self.curr =
             if let Some(pb) = self.pushback.pop() {pb}
@@ -69,7 +69,7 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
 
     pub fn new(mut source: T) -> io::Result<Self> {
         let curr = if let Some(ch) = source.next() {ch?} else {'\0'};
-        Ok(ScannerCore {source, pushback: Vec::new(),
+        Ok(LexerCore {source, pushback: Vec::new(),
             curr, in_notation: false, allow_field_notation: true})
     }
 
@@ -80,7 +80,7 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
         println!("{:?}, {:?} <- {:?}", self.pushback, self.curr, last);
     }
 
-    fn read_number(&mut self) -> io::Result<SToken> {
+    fn read_number(&mut self) -> io::Result<Token> {
         let mut num = (self.curr as u32) - ('0' as u32);
 
         let base = if num == 0 {
@@ -112,8 +112,8 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
             } else {break}
         }
         match denom {
-            Some(denom) => Ok(SToken::Decimal(Ratio::new(num, denom))),
-            None => Ok(SToken::Numeral(num))
+            Some(denom) => Ok(Token::Decimal(Ratio::new(num, denom))),
+            None => Ok(Token::Numeral(num))
         }
     }
 
@@ -144,14 +144,14 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
         }
     }
 
-    fn read_doc_block(&mut self, modd: bool) -> io::Result<SToken> {
+    fn read_doc_block(&mut self, modd: bool) -> io::Result<Token> {
         let mut buf = String::new();
         loop {
             let c = self.curr;
             match c {
                 '\0' => return throw("unexpected end of documentation block"),
                 '-' => if self.next()? == '/' {
-                    self.next()?; return Ok(SToken::DocBlock(modd, buf))
+                    self.next()?; return Ok(Token::DocBlock(modd, buf))
                 },
                 _ => { self.next()?; }
             };
@@ -185,22 +185,22 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
         }
     }
 
-    fn read_char(&mut self) -> io::Result<SToken> {
+    fn read_char(&mut self) -> io::Result<Token> {
         let c = self.read_single_char("unexpected end of character")?;
         if self.curr != '\'' {return throw("invalid character, ' expected")}
-        self.next()?; Ok(SToken::Char(c))
+        self.next()?; Ok(Token::Char(c))
     }
 
-    fn read_string(&mut self) -> io::Result<SToken> {
+    fn read_string(&mut self) -> io::Result<Token> {
         let mut s = String::new(); self.next()?;
         loop {
             if self.curr == '\"' {
-                self.next()?; return Ok(SToken::String(s)) }
+                self.next()?; return Ok(Token::String(s)) }
             s.push(self.read_single_char("unexpected end of string")?);
         }
     }
 
-    fn read_quoted_symbol(&mut self) -> io::Result<SToken> {
+    fn read_quoted_symbol(&mut self) -> io::Result<Token> {
         let mut s = String::new(); self.next()?;
         let mut start = false;
         let mut trailing_space = false;
@@ -208,7 +208,7 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
             match self.curr {
                 '\0' => return throw("unexpected quoted identifier"),
                 '`' if start => return throw("empty quoted identifier"),
-                '`' => return Ok(SToken::QuotedSymbol(s)),
+                '`' => return Ok(Token::QuotedSymbol(s)),
                 '\"' | '\n' | '\t' => return throw("invalid character in quoted identifier"),
                 ' ' => { if !start {trailing_space = true}; s.push(' ') },
                 c if start && c.is_digit(10) => return throw("quoted identifier can't start with digit"),
@@ -219,14 +219,14 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
         }
     }
 
-    fn read_field_idx(&mut self) -> io::Result<SToken> {
+    fn read_field_idx(&mut self) -> io::Result<Token> {
         let mut num: u32 = 0;
         while let Some(m) = self.curr.to_digit(10) {
             num = num.checked_mul(10).and_then(|n| n.checked_add(m))
                 .ok_or_else(|| invalid("field notation index too large"))?;
             self.next()?;
         }
-        Ok(SToken::FieldNum(num))
+        Ok(Token::FieldNum(num))
     }
 
     fn read_id_part(&mut self, cs: &mut String) -> io::Result<()> {
@@ -250,7 +250,7 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
         }
     }
 
-    fn munch<'a>(&mut self, tt: &'a TokenTable, cs: &mut String) -> io::Result<Option<(&'a Token, usize)>> {
+    fn munch<'a>(&mut self, tt: &'a TokenTable, cs: &mut String) -> io::Result<Option<(&'a KToken, usize)>> {
         let mut res = tt.search().next(cs);
         loop {
             match res {
@@ -266,7 +266,7 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
         }
     }
 
-    fn read_key_cmd_id(&mut self, tt: &TokenTable) -> io::Result<SToken> {
+    fn read_key_cmd_id(&mut self, tt: &TokenTable) -> io::Result<Token> {
         let mut cs = String::new();
 
         fn cs_to_name(cs: &str) -> Name {
@@ -290,7 +290,7 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
             if self.next()?.is_digit(10) {return self.read_field_idx()}
             if is_id_first(self.curr) && self.curr != '_' {
                 self.read_id_part(&mut cs)?;
-                return Ok(SToken::FieldName(cs_to_name(&cs)))
+                return Ok(Token::FieldName(cs_to_name(&cs)))
             }
             cs.push('.');
         } else {
@@ -307,32 +307,32 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
         let (tk, n) = match self.munch(tt, &mut cs)?.and_then(|(tk, n)| {
             if n/2 < id_sz {None} else {Some((tk, n/2))}
         }) {
-            None => (SToken::Identifier(cs_to_name(&cs[0..id_sz])), id_sz),
-            Some((Token {tk, prec: None}, n)) => (SToken::CommandKeyword(tk.clone()), n),
-            Some((Token {tk, prec: Some(prec)}, n)) => (SToken::Keyword(tk.clone(), *prec), n)
+            None => (Token::Identifier(cs_to_name(&cs[0..id_sz])), id_sz),
+            Some((KToken {tk, prec: None}, n)) => (Token::CommandKeyword(tk.clone()), n),
+            Some((KToken {tk, prec: Some(prec)}, n)) => (Token::Keyword(tk.clone(), *prec), n)
         };
         if n == 0 {return throw("unexpected token")}
         for c in cs.split_at(n).1.chars().rev().skip(1) { self.pushback(c) }
         Ok(tk)
     }
 
-    pub fn scan(&mut self, tt: &TokenTable) -> io::Result<SToken> {
+    pub fn lex(&mut self, tt: &TokenTable) -> io::Result<Token> {
         loop {
             match self.curr {
-                '\0' => return Ok(SToken::Eof),
+                '\0' => return Ok(Token::Eof),
                 ' ' | '\r' | '\t' | '\n' => (),
                 '\"' => return self.read_string(),
                 '`' if self.in_notation => return self.read_quoted_symbol(),
                 c if c.is_digit(10) => return self.read_number(),
                 _ => {
                     match self.read_key_cmd_id(tt)? {
-                        SToken::Keyword(s, prec) => match s.as_ref() {
+                        Token::Keyword(s, prec) => match s.as_ref() {
                             "--" => self.read_line_comment()?,
                             "/-" => self.read_block_comment()?,
                             "/--" => return self.read_doc_block(false),
                             "/-!" => return self.read_doc_block(true),
                             "\'" => return self.read_char(),
-                            _ => return Ok(SToken::Keyword(s, prec)) },
+                            _ => return Ok(Token::Keyword(s, prec)) },
                         k => return Ok(k) }
                 } }
             self.next()?;
@@ -340,35 +340,35 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
     }
 }
 
-pub struct Scanner<T: io::Read> {
-    token_table: TokenTable,
-    data: ScannerCore<CodePoints<io::Bytes<T>>>
+pub struct Lexer<T: io::Read> {
+    pub token_table: TokenTable,
+    data: LexerCore<CodePoints<io::Bytes<T>>>
 }
 
-pub fn from_file(path: &Path, token_table: TokenTable) -> io::Result<Scanner<io::BufReader<File>>> {
-    Scanner::new(io::BufReader::new(File::open(path)?), token_table)
+pub fn from_file(path: &Path, tt: TokenTable) -> io::Result<Lexer<io::BufReader<File>>> {
+    Lexer::new(io::BufReader::new(File::open(path)?), tt)
 }
 
-impl<T: io::Read> Scanner<T> {
+impl<T: io::Read> Lexer<T> {
     pub fn new(source: T, token_table: TokenTable) -> io::Result<Self> {
-        Ok(Scanner {token_table, data: ScannerCore::new(CodePoints::from(source))?})
+        Ok(Lexer {token_table, data: LexerCore::new(CodePoints::from(source))?})
     }
 
     pub fn curr(&self) -> char { self.data.curr }
 
-    pub fn scan(&mut self) -> io::Result<SToken> {
-        self.data.scan(&self.token_table)
+    pub fn lex(&mut self) -> io::Result<Token> {
+        self.data.lex(&self.token_table)
     }
 }
 
-impl<T: io::Read> Iterator for Scanner<T> {
-    type Item = io::Result<SToken>;
+impl<T: io::Read> Iterator for Lexer<T> {
+    type Item = io::Result<Token>;
 
-    fn next(&mut self) -> Option<io::Result<SToken>> {
+    fn next(&mut self) -> Option<io::Result<Token>> {
         if self.curr() == '\0' {return None}
-        match self.scan() {
+        match self.lex() {
             Err(err) => Some(Err(err)),
-            Ok(SToken::Eof) => None,
+            Ok(Token::Eof) => None,
             Ok(tk) => Some(Ok(tk))
         }
     }
