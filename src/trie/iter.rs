@@ -2,26 +2,27 @@
 
 use std::iter::{FilterMap, FromIterator, Map};
 use std::slice;
+use std::ops::Deref;
 
 use super::trie_node::TrieNode;
 use super::{NibbleVec, SubTrie, Trie, TrieKey};
 
 // MY EYES.
-type Child<K, V> = Box<TrieNode<K, V>>;
-type RawChildIter<'a, K, V> = slice::Iter<'a, Option<Child<K, V>>>;
-type ChildMapFn<'a, K, V> = fn(&'a Option<Child<K, V>>) -> Option<&'a Child<K, V>>;
-type ChildIter<'a, K, V> = FilterMap<RawChildIter<'a, K, V>, ChildMapFn<'a, K, V>>;
+type Child<V> = Box<TrieNode<V>>;
+type RawChildIter<'a, V> = slice::Iter<'a, Option<Child<V>>>;
+type ChildMapFn<'a, V> = fn(&'a Option<Child<V>>) -> Option<&'a Child<V>>;
+type ChildIter<'a, V> = FilterMap<RawChildIter<'a, V>, ChildMapFn<'a, V>>;
 
 /// Iterator over the keys and values of a Trie.
-pub struct Iter<'a, K: 'a, V: 'a> {
-    root: &'a TrieNode<K, V>,
+pub struct Iter<'a, V: 'a> {
+    root: &'a TrieNode<V>,
     root_visited: bool,
-    stack: Vec<ChildIter<'a, K, V>>,
+    stack: Vec<ChildIter<'a, V>>,
 }
 
-impl<'a, K, V> Iter<'a, K, V> {
+impl<'a, V> Iter<'a, V> {
     // TODO: make this private somehow (and same for the other iterators).
-    pub fn new(root: &'a TrieNode<K, V>) -> Iter<'a, K, V> {
+    pub fn new(root: &'a TrieNode<V>) -> Iter<'a, V> {
         Iter {
             root: root,
             root_visited: false,
@@ -31,50 +32,44 @@ impl<'a, K, V> Iter<'a, K, V> {
 }
 
 /// Iterator over the keys of a Trie.
-pub struct Keys<'a, K: 'a, V: 'a> {
-    inner: Map<Iter<'a, K, V>, KeyMapFn<'a, K, V>>,
+pub struct Keys<'a, V: 'a> {
+    inner: Map<Iter<'a, V>, KeyMapFn<'a, V>>,
 }
 
-type KeyMapFn<'a, K, V> = fn((&'a K, &'a V)) -> &'a K;
+type KeyMapFn<'a, V> = fn((&'a NibbleVec, &'a V)) -> &'a NibbleVec;
 
-impl<'a, K, V> Keys<'a, K, V> {
-    pub fn new(iter: Iter<'a, K, V>) -> Keys<'a, K, V> {
-        fn first<'b, K, V>((k, _): (&'b K, &'b V)) -> &'b K {
-            k
-        }
+impl<'a, V> Keys<'a, V> {
+    pub fn new(iter: Iter<'a, V>) -> Keys<'a, V> {
         Keys {
-            inner: iter.map(first),
+            inner: iter.map(|kv| kv.0),
         }
     }
 }
 
-impl<'a, K, V> Iterator for Keys<'a, K, V> {
-    type Item = &'a K;
+impl<'a, V> Iterator for Keys<'a, V> {
+    type Item = &'a NibbleVec;
 
-    fn next(&mut self) -> Option<&'a K> {
+    fn next(&mut self) -> Option<&'a NibbleVec> {
         self.inner.next()
     }
 }
 
 /// Iterator over the values of a Trie.
-pub struct Values<'a, K: 'a, V: 'a> {
-    inner: Map<Iter<'a, K, V>, ValueMapFn<'a, K, V>>,
+pub struct Values<'a, V: 'a> {
+    inner: Map<Iter<'a, V>, ValueMapFn<'a, V>>,
 }
 
-type ValueMapFn<'a, K, V> = fn((&'a K, &'a V)) -> &'a V;
+type ValueMapFn<'a, V> = fn((&'a NibbleVec, &'a V)) -> &'a V;
 
-impl<'a, K, V> Values<'a, K, V> {
-    pub fn new(iter: Iter<'a, K, V>) -> Values<'a, K, V> {
-        fn second<'b, K, V>((_, v): (&'b K, &'b V)) -> &'b V {
-            v
-        }
+impl<'a, V> Values<'a, V> {
+    pub fn new(iter: Iter<'a, V>) -> Values<'a, V> {
         Values {
-            inner: iter.map(second),
+            inner: iter.map(|kv| kv.1),
         }
     }
 }
 
-impl<'a, K, V> Iterator for Values<'a, K, V> {
+impl<'a, V> Iterator for Values<'a, V> {
     type Item = &'a V;
 
     fn next(&mut self) -> Option<&'a V> {
@@ -83,13 +78,13 @@ impl<'a, K, V> Iterator for Values<'a, K, V> {
 }
 
 /// Iterator over the child subtries of a trie.
-pub struct Children<'a, K: 'a, V: 'a> {
+pub struct Children<'a, V: 'a> {
     prefix: NibbleVec,
-    inner: ChildIter<'a, K, V>,
+    inner: ChildIter<'a, V>,
 }
 
-impl<'a, K, V> Children<'a, K, V> {
-    pub fn new(key: NibbleVec, node: &'a TrieNode<K, V>) -> Self {
+impl<'a, V> Children<'a, V> {
+    pub fn new(key: NibbleVec, node: &'a TrieNode<V>) -> Self {
         Children {
             prefix: key,
             inner: node.child_iter(),
@@ -97,10 +92,10 @@ impl<'a, K, V> Children<'a, K, V> {
     }
 }
 
-impl<'a, K, V> Iterator for Children<'a, K, V> {
-    type Item = SubTrie<'a, K, V>;
+impl<'a, V> Iterator for Children<'a, V> {
+    type Item = SubTrie<'a, V>;
 
-    fn next(&mut self) -> Option<SubTrie<'a, K, V>> {
+    fn next(&mut self) -> Option<SubTrie<'a, V>> {
         self.inner.next().map(|node| SubTrie {
             prefix: self.prefix.clone().join(&node.key),
             node: node,
@@ -108,10 +103,10 @@ impl<'a, K, V> Iterator for Children<'a, K, V> {
     }
 }
 
-impl<K, V> TrieNode<K, V> {
+impl<V> TrieNode<V> {
     /// Helper function to get all the non-empty children of a node.
-    fn child_iter(&self) -> ChildIter<K, V> {
-        fn id<K, V>(x: &Option<Child<K, V>>) -> Option<&Child<K, V>> {
+    fn child_iter(&self) -> ChildIter<V> {
+        fn id<V>(x: &Option<Child<V>>) -> Option<&Child<V>> {
             x.as_ref()
         }
 
@@ -119,18 +114,18 @@ impl<K, V> TrieNode<K, V> {
     }
 
     /// Get the key and value of a node as a pair.
-    fn kv_as_pair(&self) -> Option<(&K, &V)> {
-        self.key_value.as_ref().map(|kv| (&kv.key, &kv.value))
+    fn kv_as_pair(&self) -> Option<(&NibbleVec, &V)> {
+        self.value.as_ref().map(|v| (&self.key, v.deref()))
     }
 }
 
-enum IterAction<'a, K: 'a, V: 'a> {
-    Push(&'a TrieNode<K, V>),
+enum IterAction<'a, V: 'a> {
+    Push(&'a TrieNode<V>),
     Pop,
 }
 
-impl<'a, K, V> Iterator for Iter<'a, K, V> {
-    type Item = (&'a K, &'a V);
+impl<'a, V> Iterator for Iter<'a, V> {
+    type Item = (&'a NibbleVec, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
         use self::IterAction::*;
@@ -168,17 +163,14 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
     }
 }
 
-impl<K, V> FromIterator<(K, V)> for Trie<K, V>
-where
-    K: TrieKey,
-{
-    fn from_iter<T>(iter: T) -> Trie<K, V>
+impl<K: TrieKey, V> FromIterator<(K, V)> for Trie<V> {
+    fn from_iter<T>(iter: T) -> Trie<V>
     where
         T: IntoIterator<Item = (K, V)>,
     {
-        let mut trie = Trie::new();
+        let mut trie: Trie<V> = Trie::new();
         for (k, v) in iter {
-            trie.insert(k, v);
+            trie.insert(&k, v);
         }
         trie
     }

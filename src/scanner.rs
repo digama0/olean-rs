@@ -5,7 +5,7 @@ use std::mem;
 use std::path::Path;
 use num::{rational::Ratio, BigInt, BigRational};
 use unicode_reader::CodePoints;
-use super::trie::{Trie, TrieCommon, iter::Values};
+use super::trie::{Trie, TrieCommon, iter::Values, TrieKey};
 use super::loader::Loader;
 use super::types::{Modification, Token, Name, Name2};
 
@@ -79,7 +79,7 @@ fn is_id_rest(c: char) -> bool {
     is_letter_like_unicode(c) || is_sub_script_alnum_unicode(c)
 }
 
-#[derive(Debug)] pub struct TokenTable(Trie<String, Token>);
+#[derive(Debug)] pub struct TokenTable(Trie<Token>);
 
 impl TokenTable {
     fn new() -> TokenTable {
@@ -89,18 +89,18 @@ impl TokenTable {
         for s in COMMANDS {
             table.insert(Token{tk: s.to_string(), prec: None}) }
         for (s1, s2, prec) in ALIASES {
-            table.0.insert(s1.to_string(), Token{tk: s2.to_string(), prec: *prec}); }
+            table.0.insert(s1, Token{tk: s2.to_string(), prec: *prec}); }
         table
     }
 
     fn insert(&mut self, tk: Token) {
-        self.0.insert(tk.tk.clone(), tk);
+        self.0.insert_nv(tk.tk.encode(), tk);
     }
 }
 
 impl<'a> IntoIterator for &'a TokenTable {
     type Item = &'a Token;
-    type IntoIter = Values<'a, String, Token>;
+    type IntoIter = Values<'a, Token>;
     fn into_iter(self) -> Self::IntoIter { self.0.values() }
 }
 

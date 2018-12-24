@@ -33,26 +33,26 @@ const BRANCH_FACTOR: usize = 16;
 ///
 /// [radix-wiki]: http://en.wikipedia.org/wiki/Radix_tree
 #[derive(Debug)]
-pub struct Trie<K, V> {
+pub struct Trie<V> {
     /// The number of values stored in this sub-trie (this node and all descendants).
     length: usize,
     /// The main content of this trie.
-    node: TrieNode<K, V>,
+    node: TrieNode<V>,
 }
 
 /// Immutable view of a sub-tree a larger trie.
 #[derive(Debug)]
-pub struct SubTrie<'a, K: 'a, V: 'a> {
+pub struct SubTrie<'a, V: 'a> {
     prefix: NibbleVec,
-    node: &'a TrieNode<K, V>,
+    node: &'a TrieNode<V>,
 }
 
 /// Mutable view of a sub-tree of a larger trie.
 #[derive(Debug)]
-pub struct SubTrieMut<'a, K: 'a, V: 'a> {
+pub struct SubTrieMut<'a, V: 'a> {
     prefix: NibbleVec,
     length: &'a mut usize,
-    node: &'a mut TrieNode<K, V>,
+    node: &'a mut TrieNode<V>,
 }
 
 /// Wrapper for subtrie lookup results.

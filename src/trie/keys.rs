@@ -61,16 +61,6 @@ pub fn match_keys(start_idx: usize, first: &NibbleVec, second: &NibbleVec) -> Ke
     }
 }
 
-/// Check two keys for equality and panic if they differ.
-pub fn check_keys<K: ?Sized>(key1: &K, key2: &K)
-where
-    K: TrieKey,
-{
-    if *key1 != *key2 {
-        panic!("multiple-keys with the same bit representation.");
-    }
-}
-
 // --- TrieKey Implementations for standard types --- ///
 
 // This blanket implementation goes into play when specialization is stabilized

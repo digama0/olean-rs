@@ -1,54 +1,65 @@
-use std::borrow::Borrow;
 use super::traversal::DescendantResult::*;
 use super::trie_node::TrieNode;
 use super::{NibbleVec, SubTrie, SubTrieMut, Trie, TrieCommon, TrieKey};
 
-impl<K, V> Trie<K, V>
-where
-    K: TrieKey,
-{
+impl<V> Trie<V> {
     /// Create an empty Trie.
-    pub fn new() -> Trie<K, V> {
+    pub fn new() -> Trie<V> {
         Trie {
             length: 0,
             node: TrieNode::new(),
         }
     }
 
+    /// View the root of this trie as a SubTrie.
+    pub fn root(&self) -> SubTrie<V> {
+        SubTrie {
+            prefix: NibbleVec::new(),
+            node: &self.node,
+        }
+    }
+
+    /// View the root of this trie as a SubTrieMut.
+    pub fn root_mut(&mut self) -> SubTrieMut<V> {
+        SubTrieMut {
+            prefix: NibbleVec::new(),
+            length: &mut self.length,
+            node: &mut self.node,
+        }
+    }
+
     /// Fetch a reference to the given key's corresponding value, if any.
-    ///
-    /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
-    /// form *must* match those for the key type
-    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
-    where
-        K: Borrow<Q>,
-        Q: TrieKey,
-    {
-        let key_fragments = key.encode();
+    pub fn get<K: TrieKey + ?Sized>(&self, key: &K) -> Option<&V> {
+        self.get_nv(&key.encode())
+    }
+
+    /// Fetch a reference to the given key's corresponding value, if any.
+    pub fn get_nv(&self, key: &NibbleVec) -> Option<&V> {
         self.node
-            .get(&key_fragments)
-            .and_then(|t| t.value_checked(key))
+            .get(&key)
+            .and_then(|t| t.value())
     }
 
     /// Fetch a mutable reference to the given key's corresponding value, if any.
-    ///
-    /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
-    /// form *must* match those for the key type
-    pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
-    where
-        K: Borrow<Q>,
-        Q: TrieKey,
-    {
-        let key_fragments = key.encode();
+    pub fn get_mut<K: TrieKey + ?Sized>(&mut self, key: &K) -> Option<&mut V> {
+        self.get_mut_nv(&key.encode())
+    }
+
+    /// Fetch a mutable reference to the given key's corresponding value, if any.
+    pub fn get_mut_nv(&mut self, key: &NibbleVec) -> Option<&mut V> {
         self.node
-            .get_mut(&key_fragments)
-            .and_then(|t| t.value_checked_mut(key))
+            .get_mut(&key)
+            .and_then(|t| t.value_mut())
     }
 
     /// Insert the given key-value pair, returning any previous value associated with the key.
-    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
-        let key_fragments = key.encode();
-        let result = self.node.insert(key, value, key_fragments);
+    pub fn insert<K: TrieKey + ?Sized>(&mut self, key: &K, value: V) -> Option<V> {
+        self.insert_nv(key.encode(), value)
+    }
+
+    /// Insert the given key-value pair, returning any previous value associated with the key.
+    pub fn insert_nv(&mut self, key: NibbleVec, value: V) -> Option<V> {
+        let result = self.node.insert(key, value);
         if result.is_none() {
             self.length += 1;
         }
@@ -56,14 +67,12 @@ where
     }
 
     /// Remove the value associated with the given key.
-    ///
-    /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
-    /// form *must* match those for the key type
-    pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
-    where
-        K: Borrow<Q>,
-        Q: TrieKey,
-    {
+    pub fn remove<K: TrieKey + ?Sized>(&mut self, key: &K) -> Option<V> {
+        self.remove_nv(&key.encode())
+    }
+
+    /// Remove the value associated with the given key.
+    pub fn remove_nv(&mut self, key: &NibbleVec) -> Option<V> {
         let removed = self.node.remove(key);
         if removed.is_some() {
             self.length -= 1;
@@ -77,14 +86,7 @@ where
     }
 
     /// Fetch a reference to the subtrie for a given key.
-    ///
-    /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
-    /// form *must* match those for the key type
-    pub fn subtrie<'a, Q: ?Sized>(&'a self, key: &Q) -> Option<SubTrie<'a, K, V>>
-    where
-        K: Borrow<Q>,
-        Q: TrieKey,
-    {
+    pub fn subtrie<'a, K: TrieKey + ?Sized>(&'a self, key: &K) -> Option<SubTrie<'a, V>> {
         let key_fragments = key.encode();
         self.node
             .get(&key_fragments)
@@ -92,14 +94,7 @@ where
     }
 
     /// Fetch a mutable reference to the subtrie for a given key.
-    ///
-    /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
-    /// form *must* match those for the key type
-    pub fn subtrie_mut<'a, Q: ?Sized>(&'a mut self, key: &Q) -> Option<SubTrieMut<'a, K, V>>
-    where
-        K: Borrow<Q>,
-        Q: TrieKey,
-    {
+    pub fn subtrie_mut<'a, K: TrieKey + ?Sized>(&'a mut self, key: &K) -> Option<SubTrieMut<'a, V>> {
         let key_fragments = key.encode();
         let length_ref = &mut self.length;
         self.node
@@ -117,11 +112,7 @@ where
     ///
     /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
     /// form *must* match those for the key type
-    pub fn get_ancestor<'a, Q: ?Sized>(&'a self, key: &Q) -> Option<SubTrie<'a, K, V>>
-    where
-        K: Borrow<Q>,
-        Q: TrieKey,
-    {
+    pub fn get_ancestor<'a, K: TrieKey + ?Sized>(&'a self, key: &K) -> Option<SubTrie<'a, V>> {
         let mut key_fragments = key.encode();
         self.node
             .get_ancestor(&key_fragments)
@@ -137,21 +128,13 @@ where
     ///
     /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
     /// form *must* match those for the key type
-    pub fn get_ancestor_value<Q: ?Sized>(&self, key: &Q) -> Option<&V>
-    where
-        K: Borrow<Q>,
-        Q: TrieKey,
-    {
+    pub fn get_ancestor_value<K: TrieKey + ?Sized>(&self, key: &K) -> Option<&V> {
         self.get_ancestor(key).and_then(|t| t.node.value())
     }
 
     /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
     /// form *must* match those for the key type
-    pub fn get_raw_ancestor<'a, Q: ?Sized>(&'a self, key: &Q) -> SubTrie<'a, K, V>
-    where
-        K: Borrow<Q>,
-        Q: TrieKey,
-    {
+    pub fn get_raw_ancestor<'a, K: TrieKey + ?Sized>(&'a self, key: &K) -> SubTrie<'a, V> {
         let mut nv = key.encode();
         let (ancestor_node, depth) = self.node.get_raw_ancestor(&nv);
         nv.split(depth);
@@ -164,11 +147,7 @@ where
     ///
     /// The key may be any borrowed form of the trie's key type, but TrieKey on the borrowed
     /// form *must* match those for the key type
-    pub fn get_raw_descendant<'a, Q: ?Sized>(&'a self, key: &Q) -> Option<SubTrie<'a, K, V>>
-    where
-        K: Borrow<Q>,
-        Q: TrieKey,
-    {
+    pub fn get_raw_descendant<'a, K: TrieKey + ?Sized>(&'a self, key: &K) -> Option<SubTrie<'a, V>> {
         let mut nv = key.encode();
         self.node.get_raw_descendant(&nv).map(|desc| {
             let (node, prefix) = match desc {
@@ -185,15 +164,10 @@ where
     /// Take a function `f` and apply it to the value stored at `key`.
     ///
     /// If no value is stored at `key`, store `default`.
-    pub fn map_with_default<F>(&mut self, key: K, f: F, default: V)
-    where
-        F: Fn(&mut V),
-    {
-        {
-            if let Some(v) = self.get_mut(&key) {
-                f(v);
-                return;
-            }
+    pub fn map_with_default<K: TrieKey, F: Fn(&mut V)>(&mut self, key: &K, f: F, default: V) {
+        if let Some(v) = self.get_mut(key) {
+            f(v);
+            return;
         }
         self.insert(key, default);
     }
@@ -202,27 +176,23 @@ where
     /// Quite slow!
     #[doc(hidden)]
     pub fn check_integrity(&self) -> bool {
-        let (ok, length) = self.node.check_integrity_recursive(&NibbleVec::new());
+        let (ok, length) = self.node.check_integrity_recursive(0);
         ok && length == self.length
     }
 }
 
-impl<K, V> PartialEq for Trie<K, V>
-where
-    K: TrieKey,
-    V: PartialEq,
-{
-    fn eq(&self, other: &Trie<K, V>) -> bool {
+impl<V: PartialEq> PartialEq for Trie<V> {
+    fn eq(&self, other: &Trie<V>) -> bool {
         if self.len() != other.len() {
             return false;
         }
 
         self.iter()
-            .all(|(key, value)| other.get(key).map_or(false, |v| *value == *v))
+            .all(|(key, value)| other.get_nv(key).map_or(false, |v| *value == *v))
     }
 }
 
-impl<K: TrieKey, V> Default for Trie<K, V> {
+impl<V> Default for Trie<V> {
     fn default() -> Self {
         Self::new()
     }

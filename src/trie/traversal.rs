@@ -1,46 +1,38 @@
 //! This module contains the core algorithms.
 
 use super::keys::{match_keys, KeyMatch};
-use std::borrow::Borrow;
 use super::trie_node::TrieNode;
-use super::{NibbleVec, TrieKey};
+use super::NibbleVec;
 
 use self::DescendantResult::*;
 
-impl<K, V> TrieNode<K, V>
-where
-    K: TrieKey,
-{
-    pub fn get(&self, nv: &NibbleVec) -> Option<&TrieNode<K, V>> {
-        iterative_get(self, nv)
+impl<V> TrieNode<V> {
+    pub fn get(&self, key: &NibbleVec) -> Option<&TrieNode<V>> {
+        iterative_get(self, key)
     }
 
-    pub fn get_mut(&mut self, nv: &NibbleVec) -> Option<&mut TrieNode<K, V>> {
-        iterative_get_mut(self, nv)
+    pub fn get_mut(&mut self, key: &NibbleVec) -> Option<&mut TrieNode<V>> {
+        iterative_get_mut(self, key)
     }
 
-    pub fn insert(&mut self, key: K, value: V, nv: NibbleVec) -> Option<V> {
-        iterative_insert(self, key, value, nv)
+    pub fn insert(&mut self, key: NibbleVec, value: V) -> Option<V> {
+        iterative_insert(self, key, value)
     }
 
-    pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
-    where
-        K: Borrow<Q>,
-        Q: TrieKey,
-    {
+    pub fn remove(&mut self, key: &NibbleVec) -> Option<V> {
         recursive_remove(self, key)
     }
 
-    pub fn get_ancestor(&self, nv: &NibbleVec) -> Option<(&TrieNode<K, V>, usize)> {
-        get_ancestor(self, nv)
+    pub fn get_ancestor(&self, key: &NibbleVec) -> Option<(&TrieNode<V>, usize)> {
+        get_ancestor(self, key)
     }
 
-    pub fn get_raw_ancestor(&self, nv: &NibbleVec) -> (&TrieNode<K, V>, usize) {
-        get_raw_ancestor(self, nv)
+    pub fn get_raw_ancestor(&self, key: &NibbleVec) -> (&TrieNode<V>, usize) {
+        get_raw_ancestor(self, key)
     }
 
-    pub fn get_raw_descendant<'a>(&'a self, nv: &NibbleVec) -> Option<DescendantResult<'a, K, V>> {
-        get_raw_descendant(self, nv)
+    pub fn get_raw_descendant<'a>(&'a self, key: &NibbleVec) -> Option<DescendantResult<'a, V>> {
+        get_raw_descendant(self, key)
     }
 }
 
@@ -56,8 +48,8 @@ macro_rules! get_func {
         trie_type: $trie_type:ty,
         mutability: $($mut_:tt)*
     ) => {id!{
-        fn $name<'a, K, V>(trie: $trie_type, nv: &NibbleVec) -> Option<$trie_type> {
-            if nv.len() == 0 {
+        fn $name<'a, V>(trie: $trie_type, key: &NibbleVec) -> Option<$trie_type> {
+            if key.len() == 0 {
                 return Some(trie);
             }
 
@@ -65,10 +57,10 @@ macro_rules! get_func {
             let mut depth = 0;
 
             loop {
-                let bucket = nv.get(depth) as usize;
+                let bucket = key.get(depth) as usize;
                 let current = prev;
                 if let Some(ref $($mut_)* child) = current.children[bucket] {
-                    match match_keys(depth, nv, &child.key) {
+                    match match_keys(depth, key, &child.key) {
                         KeyMatch::Full => {
                             return Some(child);
                         }
@@ -88,51 +80,47 @@ macro_rules! get_func {
     }}
 }
 
-get_func!(name: iterative_get, trie_type: &'a TrieNode<K, V>, mutability: );
-get_func!(name: iterative_get_mut, trie_type: &'a mut TrieNode<K, V>, mutability: mut);
+get_func!(name: iterative_get, trie_type: &'a TrieNode<V>, mutability: );
+get_func!(name: iterative_get_mut, trie_type: &'a mut TrieNode<V>, mutability: mut);
 
-fn iterative_insert<K, V>(
-    trie: &mut TrieNode<K, V>,
-    key: K,
+fn iterative_insert<V>(
+    trie: &mut TrieNode<V>,
+    mut key: NibbleVec,
     value: V,
-    mut nv: NibbleVec,
-) -> Option<V>
-where
-    K: TrieKey,
-{
-    if nv.len() == 0 {
-        return trie.replace_value(key, value);
+) -> Option<V> {
+    if key.len() == 0 {
+        return trie.replace_value(value);
     }
 
     let mut prev = trie;
     let mut depth = 0;
 
     loop {
-        let bucket = nv.get(depth) as usize;
+        let bucket = key.get(depth) as usize;
         let current = prev;
         if let Some(ref mut child) = current.children[bucket] {
-            match match_keys(depth, &nv, &child.key) {
+            match match_keys(depth, &key, &child.key) {
                 KeyMatch::Full => {
-                    return child.replace_value(key, value);
+                    return child.replace_value(value);
                 }
                 KeyMatch::Partial(idx) => {
                     // Split the existing child.
                     child.split(idx);
 
                     // Insert the new key below the prefix node.
-                    let new_key = nv.split(depth + idx);
+                    let new_key = key.split(depth + idx);
                     let new_key_bucket = new_key.get(0) as usize;
 
                     child.add_child(
                         new_key_bucket,
-                        Box::new(TrieNode::with_key_value(new_key, key, value)),
+                        Box::new(TrieNode::with_key_value(new_key, value)),
                     );
 
                     return None;
                 }
                 KeyMatch::FirstPrefix => {
-                    child.split(nv.len() - depth);
-                    child.add_key_value(key, value);
+                    child.split(key.len() - depth);
+                    child.add_value(value);
                     return None;
                 }
                 KeyMatch::SecondPrefix => {
@@ -141,10 +129,10 @@ where
                 }
             }
         } else {
-            let node_key = nv.split(depth);
+            let node_key = key.split(depth);
             current.add_child(
                 bucket,
-                Box::new(TrieNode::with_key_value(node_key, key, value)),
+                Box::new(TrieNode::with_key_value(node_key, value)),
             );
             return None;
         }
@@ -152,27 +140,20 @@ where
 }
 
 // TODO: clean this up and make it iterative.
-fn recursive_remove<K, Q: ?Sized, V>(trie: &mut TrieNode<K, V>, key: &Q) -> Option<V>
-where
-    K: TrieKey,
-    K: Borrow<Q>,
-    Q: TrieKey,
-{
-    let nv = key.encode();
-
-    if nv.len() == 0 {
-        return trie.take_value(key);
+fn recursive_remove<V>(trie: &mut TrieNode<V>, key: &NibbleVec) -> Option<V> {
+    if key.len() == 0 {
+        return trie.take_value();
     }
 
-    let bucket = nv.get(0) as usize;
+    let bucket = key.get(0) as usize;
 
     let child = trie.take_child(bucket);
 
     match child {
         Some(mut child) => {
-            match match_keys(0, &nv, &child.key) {
+            match match_keys(0, &key, &child.key) {
                 KeyMatch::Full => {
-                    let result = child.take_value(key);
+                    let result = child.take_value();
                     if child.child_count != 0 {
                         // If removing this node's value has made it a value-less node with a
                         // single child, then merge its child.
@@ -187,7 +168,7 @@ where
                 }
                 KeyMatch::SecondPrefix => {
                     let depth = child.key.len();
-                    rec_remove(trie, child, bucket, key, depth, &nv)
+                    rec_remove(trie, child, bucket, key, depth)
                 }
                 _ => None,
             }
@@ -196,10 +177,7 @@ where
     }
 }
 
-fn get_merge_child<K, V>(trie: &mut TrieNode<K, V>) -> Box<TrieNode<K, V>>
-where
-    K: TrieKey,
-{
+fn get_merge_child<V>(trie: &mut TrieNode<V>) -> Box<TrieNode<V>> {
     let mut child = trie.take_only_child();
 
     // Join the child's key onto the existing one.
@@ -209,20 +187,14 @@ where
 }
 
 // Tail-recursive remove function used by `recursive_remove`.
-fn rec_remove<K, Q: ?Sized, V>(
-    parent: &mut TrieNode<K, V>,
-    mut middle: Box<TrieNode<K, V>>,
+fn rec_remove<V>(
+    parent: &mut TrieNode<V>,
+    mut middle: Box<TrieNode<V>>,
     prev_bucket: usize,
-    key: &Q,
+    key: &NibbleVec,
     depth: usize,
-    nv: &NibbleVec,
-) -> Option<V>
-where
-    K: TrieKey,
-    K: Borrow<Q>,
-    Q: TrieKey,
-{
-    let bucket = nv.get(depth) as usize;
+) -> Option<V> {
+    let bucket = key.get(depth) as usize;
 
     let child = middle.take_child(bucket);
     parent.add_child(prev_bucket, middle);
@@ -230,9 +202,9 @@ where
     match child {
         Some(mut child) => {
             let middle = parent.children[prev_bucket].as_mut().unwrap();
-            match match_keys(depth, nv, &child.key) {
+            match match_keys(depth, key, &child.key) {
                 KeyMatch::Full => {
-                    let result = child.take_value(key);
+                    let result = child.take_value();
 
                     // If this node has children, keep it.
                     if child.child_count != 0 {
@@ -246,7 +218,7 @@ where
                         middle.add_child(bucket, repl);
                     }
                     // Otherwise, if the parent node now only has a single child, merge it.
-                    else if middle.child_count == 1 && middle.key_value.is_none() {
+                    else if middle.child_count == 1 && middle.value.is_none() {
                         let repl = get_merge_child(middle);
                         *middle = repl;
                     }
@@ -255,7 +227,7 @@ where
                 }
                 KeyMatch::SecondPrefix => {
                     let new_depth = depth + child.key.len();
-                    rec_remove(middle, child, bucket, key, new_depth, nv)
+                    rec_remove(middle, child, bucket, key, new_depth)
                 }
                 _ => None,
             }
@@ -264,14 +236,11 @@ where
     }
 }
 
-fn get_ancestor<'a, K, V>(
-    trie: &'a TrieNode<K, V>,
-    nv: &NibbleVec,
-) -> Option<(&'a TrieNode<K, V>, usize)>
-where
-    K: TrieKey,
-{
-    if nv.len() == 0 {
+fn get_ancestor<'a, V>(
+    trie: &'a TrieNode<V>,
+    key: &NibbleVec,
+) -> Option<(&'a TrieNode<V>, usize)> {
+    if key.len() == 0 {
         return trie.as_value_node().map(|node| (node, 0));
     }
 
@@ -282,10 +251,10 @@ where
     let mut depth = 0;
 
     loop {
-        let bucket = nv.get(depth) as usize;
+        let bucket = key.get(depth) as usize;
         let current = prev;
         if let Some(ref child) = current.children[bucket] {
-            match match_keys(depth, nv, &child.key) {
+            match match_keys(depth, key, &child.key) {
                 KeyMatch::Full => {
                     return child
                         .as_value_node()
@@ -307,14 +276,11 @@ where
     }
 }
 
-fn get_raw_ancestor<'a, K, V>(
-    trie: &'a TrieNode<K, V>,
-    nv: &NibbleVec,
-) -> (&'a TrieNode<K, V>, usize)
-where
-    K: TrieKey,
-{
-    if nv.len() == 0 {
+fn get_raw_ancestor<'a, V>(
+    trie: &'a TrieNode<V>,
+    key: &NibbleVec,
+) -> (&'a TrieNode<V>, usize) {
+    if key.len() == 0 {
         return (trie, 0);
     }
 
@@ -325,10 +291,10 @@ where
     let mut depth = 0;
 
     loop {
-        let bucket = nv.get(depth) as usize;
+        let bucket = key.get(depth) as usize;
         let current = prev;
         if let Some(ref child) = current.children[bucket] {
-            match match_keys(depth, nv, &child.key) {
+            match match_keys(depth, key, &child.key) {
                 KeyMatch::Full => {
                     return (child, depth + child.key.len());
                 }
@@ -349,16 +315,16 @@ where
 
 // Type used to propogate subtrie construction instructions to the top-level `get_raw_descendant`
 // method.
-pub enum DescendantResult<'a, K: 'a, V: 'a> {
-    NoModification(&'a TrieNode<K, V>),
-    ExtendKey(&'a TrieNode<K, V>, usize, &'a NibbleVec),
+pub enum DescendantResult<'a, V: 'a> {
+    NoModification(&'a TrieNode<V>),
+    ExtendKey(&'a TrieNode<V>, usize, &'a NibbleVec),
 }
 
-fn get_raw_descendant<'a, K, V>(
-    trie: &'a TrieNode<K, V>,
-    nv: &NibbleVec,
-) -> Option<DescendantResult<'a, K, V>> {
-    if nv.len() == 0 {
+fn get_raw_descendant<'a, V>(
+    trie: &'a TrieNode<V>,
+    key: &NibbleVec,
+) -> Option<DescendantResult<'a, V>> {
+    if key.len() == 0 {
         return Some(NoModification(trie));
     }
 
@@ -366,10 +332,10 @@ fn get_raw_descendant<'a, K, V>(
     let mut depth = 0;
 
     loop {
-        let bucket = nv.get(depth) as usize;
+        let bucket = key.get(depth) as usize;
         let current = prev;
         if let Some(ref child) = current.children[bucket] {
-            match match_keys(depth, nv, &child.key) {
+            match match_keys(depth, key, &child.key) {
                 KeyMatch::Full => {
                     return Some(NoModification(child));
                 }
