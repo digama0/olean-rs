@@ -56,8 +56,8 @@ static ALIASES: &[(&str, &str, Option<u32>)] = &[
     ("lemma", "theorem", None), ("def", "definition", None)];
 
 fn is_letter_like_unicode(c: char) -> bool {
-    ('α' <= c && c <= 'ω' && c != 'λ') ||    // Lower greek, but lambda
-    ('Α' <= c && c <= 'Ω' && c != 'Π' && c != 'Σ') || // Upper greek, but Pi and Sigma
+    ('α' <= c && c <= 'ω' && c != 'λ') ||    // Lower greek, except lambda
+    ('Α' <= c && c <= 'Ω' && c != 'Π' && c != 'Σ') || // Upper greek, except Pi and Sigma
     ('ϊ' <= c && c <= 'ϻ') ||                // Coptic letters
     ('ἀ' <= c && c <= '῾') ||                // Polytonic Greek Extended Character Set
     ('℀' <= c && c <= '⅏') ||                // Letter like block
@@ -375,6 +375,7 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
             Rc::new(Name2::Str(n, part))
         }
 
+        let mut id_sz = 0;
         if self.allow_field_notation && self.curr == '.' {
             if self.next()?.is_digit(10) {return self.read_field_idx()}
             if is_id_first(self.curr) && self.curr != '_' {
@@ -385,12 +386,12 @@ impl<T: Iterator<Item = io::Result<char>>> ScannerCore<T> {
         } else {
             while is_id_first(self.curr) {
                 self.read_id_part(&mut cs)?;
+                id_sz = cs.len();
                 if self.curr != '.' {break}
                 cs.push('.');
                 self.next()?;
             }
         }
-        let id_sz = cs.len();
         cs.push(self.curr);
 
         let (tk, n) = match self.munch(tt, &mut cs)?.and_then(|(tk, n)| {

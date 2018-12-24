@@ -44,7 +44,7 @@ fn main() -> io::Result<()> {
             let path = lp.find(n2, "lean").unwrap().1;
             let scan = scanner::from_file(&path, table)?;
             for tk in scan {
-                println!("{:?}", tk);
+                println!("{:?}", tk?)
             }
             Ok(()) },
         Action::Test(name) => {
