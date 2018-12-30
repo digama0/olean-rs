@@ -14,6 +14,8 @@ use std::fs::File;
 use self::args::*;
 use self::leanpath::LeanPath;
 use self::loader::Loader;
+use self::tokens::TokenTable;
+use self::rough_parser::RoughParser;
 
 #[macro_use] extern crate num_derive;
 extern crate getopts;
@@ -31,32 +33,36 @@ fn main() -> io::Result<()> {
             for m in mods {
                 println!("{:?}", m);
             }
-            Ok(()) },
+        },
         Action::Dependents(name) => {
             let lp = LeanPath::new(&args)?;
-            let Loader{map:_, order} = Loader::load(&lp, name.clone())?;
-            for s in order { println!("{}", s) }
-            Ok(()) },
+            let mut load = Loader::new();
+            load.load(&lp, name.clone())?;
+            for s in load.order { println!("{}", s) }
+        },
         Action::Lex(name) => {
             let lp = LeanPath::new(&args)?;
-            let mut load = Loader::load(&lp, name.clone())?;
+            let mut load = Loader::new();
+            load.load(&lp, name.clone())?;
             let n2 = load.order.pop().unwrap();
-            let table = tokens::token_table(&mut load)?;
+            let mut table = TokenTable::new();
+            table.load(&mut load)?;
             let path = lp.find(n2, "lean").unwrap().1;
             let lex = lexer::from_file(&path, table)?;
             for tk in lex {
                 println!("{:?}", tk?)
             }
-            Ok(()) },
+        },
         Action::Test(name) => {
             let lp = LeanPath::new(&args)?;
-            let table = tokens::TokenTable::new();
             let path = lp.find(name.clone(), "lean").unwrap().1;
-            let lex = lexer::from_file(&path, table)?;
-            let mut parser = rough_parser::RoughParser::new(lex)?;
-            let rl = parser.parse()?;
-            println!("{:?}", rl);
-            Ok(()) },
+            let mut load = Loader::new();
+            let lexer = lexer::from_file(&path, TokenTable::new())?;
+            let mut rp = RoughParser::new(lexer);
+            let rl = rp.parse_lean(&mut load, &lp, name.clone())?;
+            for tk in rl.cmds { println!("{}", tk) }
+        },
         Action::None => args.print_usage_and_exit(1)
     }
+    Ok(())
 }

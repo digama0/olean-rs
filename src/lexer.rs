@@ -91,10 +91,8 @@ impl<T: Iterator<Item = io::Result<char>>> LexerCore<T> {
     }
 
     fn pushback(&mut self, last: char) {
-        println!("{:?}, {:?}", self.pushback, self.curr);
         self.pushback.push(self.curr);
         self.curr = last;
-        println!("{:?}, {:?} <- {:?}", self.pushback, self.curr, last);
     }
 
     fn read_number(&mut self) -> io::Result<Token> {
@@ -373,11 +371,7 @@ impl<T: io::Read> Lexer<T> {
 
     pub fn curr(&self) -> char { self.data.curr }
 
-    pub fn lex(&mut self) -> io::Result<Token> {
-        let tk = self.data.lex(&self.token_table);
-        println!("lex {:?}", tk);
-        tk
-    }
+    pub fn lex(&mut self) -> io::Result<Token> { self.data.lex(&self.token_table) }
 
     pub fn allow_field_notation(&mut self, flag: bool) -> bool {
         mem::replace(&mut self.data.allow_field_notation, flag)

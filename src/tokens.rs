@@ -68,27 +68,25 @@ impl TokenTable {
     }
 
     pub fn search(&self) -> TokenSearch { self.0.last_ancestor_iter() }
+
+    pub fn load(&mut self, load: &mut Loader) -> io::Result<()> {
+        for n in &load.order {
+            let mods = Loader::get_mods(&mut load.map, n.clone())?;
+            for m in mods {
+                match m {
+                    Modification::Token(tk) => self.insert(tk.clone()),
+                    _ => ()
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<'a> IntoIterator for &'a TokenTable {
     type Item = &'a KToken;
     type IntoIter = Values<'a, KToken>;
     fn into_iter(self) -> Self::IntoIter { self.0.values() }
-}
-
-pub fn token_table(load: &mut Loader) -> io::Result<TokenTable> {
-    let Loader{map, order} = load;
-    let mut table = TokenTable::new();
-    for n in order {
-        let mods = Loader::get_mods(map, n.clone())?;
-        for m in mods {
-            match m {
-                Modification::Token(tk) => table.insert(tk.clone()),
-                _ => ()
-            }
-        }
-    }
-    Ok(table)
 }
 
 type TokenSearch<'a> = LastAncestorIter<'a, KToken>;

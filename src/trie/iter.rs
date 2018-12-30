@@ -2,7 +2,6 @@
 
 use std::iter::{FilterMap, FromIterator, Map};
 use std::slice;
-use std::mem;
 
 use super::trie_node::TrieNode;
 use super::{NibbleVec, SubTrie, Trie, TrieKey};
@@ -168,8 +167,7 @@ impl<'a, V> Iterator for Iter<'a, V> {
             match action {
                 Some(Some(trie)) => {
                     self.stack.push((n, trie.children.iter()));
-                    let old_key = mem::replace(&mut self.key, unsafe{mem::uninitialized()});
-                    self.key = old_key.join(&trie.key);
+                    take_mut::take(&mut self.key, |k| k.join(&trie.key));
                     if let Some(v) = trie.value() {
                         return Some((self.key.clone(), v));
                     }

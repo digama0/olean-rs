@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use byteorder::{ReadBytesExt, BigEndian};
 use num_traits::cast::FromPrimitive;
 use num::bigint::BigInt;
-#[macro_use] use crate::types::*;
+use crate::types::*;
 use crate::hasher;
 
 fn invalid(s: &str) -> io::Error {
