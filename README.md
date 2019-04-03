@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/cipher1024/olean-rs.svg?branch=master)](https://travis-ci.org/cipher1024/olean-rs)
+
 # olean-rs
 Parser/viewer for olean files, written in Rust and Lean.
 
