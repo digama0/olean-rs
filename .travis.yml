@@ -2,5 +2,15 @@
 language: rust
 rust:
   - nightly
+install:
+  - |
+    if [ ! -d "$HOME/.elan/toolchains/" ]; then
+      curl https://raw.githubusercontent.com/Kha/elan/master/elan-init.sh -sSf | sh -s -- --default-toolchain 3.4.2 -y
+    fi
+  - source ~/.elan/env
 
-script: cargo build
+script:
+  - cargo build
+  - lean --make test/simple.lean
+  - cargo run -- -D test/simple.olean | tail -n +2 > test/simple.lean.actual
+  - diff test/simple.lean.actual test/simple.lean.expected
