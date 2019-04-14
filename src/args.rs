@@ -1,6 +1,8 @@
 use std::io;
 use std::env;
+use std::process::Command;
 use std::path::{Path, PathBuf};
+use std::ffi::OsStr;
 use getopts::Options;
 use std::process::exit;
 use crate::types;
@@ -20,6 +22,16 @@ fn find_it<P>(exe_name: P) -> Option<PathBuf>
             }
         }).next()
     })
+}
+
+fn elan_find_it<P>(exe_name: P) -> Option<PathBuf>
+    where P: AsRef<OsStr> {
+    Command::new("elan")
+        .arg("which")
+        .arg(exe_name)
+        .output()
+        .ok()
+        .map(|r| PathBuf::from(String::from_utf8(r.stdout).expect("bad string")))
 }
 
 pub enum Action {
@@ -45,8 +57,9 @@ impl Args {
     }
 
     pub fn library(&self) -> Option<PathBuf> {
-        self.library.clone().or_else(||
-            Some(find_it("lean")?.parent()?.parent()?.to_path_buf()))
+        self.library.clone()
+            .or_else(|| elan_find_it("lean").and_then(|p| Some(p.parent()?.parent()?.to_path_buf()))
+                     .or_else(|| Some(find_it("lean")?.parent()?.parent()?.to_path_buf())))
     }
 }
 
