@@ -15,7 +15,7 @@ fn get_leanpkg_path_file() -> Option<PathBuf> {
         path = path.parent()?
     }
 }
-
+#[derive(Clone)]
 pub struct LeanPath(pub Vec<PathBuf>);
 
 fn name_to_path(n: &Name2) -> Option<PathBuf> {

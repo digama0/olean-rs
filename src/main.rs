@@ -36,14 +36,24 @@ fn main() -> io::Result<()> {
         },
         Action::Dependents(name) => {
             let lp = LeanPath::new(&args)?;
-            let mut load = Loader::new();
-            load.load(&lp, name.clone())?;
+            let mut load = Loader::new(lp);
+            load.load(name.clone())?;
             for s in load.order { println!("{}", s) }
+        },
+        Action::Unused(name) => {
+            let lp = LeanPath::new(&args)?;
+            let mut load = Loader::new(lp);
+            load.load(name.clone())?;
+            // println!("* order");
+            // for s in &load.order { println!("{}", s) }
+            println!("* unused imports");
+            let x = load.unused_imports(&name);
+            for s in x { println!("{}", s) }
         },
         Action::Lex(name) => {
             let lp = LeanPath::new(&args)?;
-            let mut load = Loader::new();
-            load.load(&lp, name.clone())?;
+            let mut load = Loader::new(lp.clone());
+            load.load(name.clone())?;
             let n2 = load.order.pop().unwrap();
             let mut table = TokenTable::new();
             table.load(&mut load)?;
@@ -56,10 +66,10 @@ fn main() -> io::Result<()> {
         Action::Test(name) => {
             let lp = LeanPath::new(&args)?;
             let path = lp.find(name.clone(), "lean").unwrap().1;
-            let mut load = Loader::new();
+            let mut load = Loader::new(lp);
             let lexer = lexer::from_file(&path, TokenTable::new())?;
             let mut rp = RoughParser::new(lexer);
-            let rl = rp.parse_lean(&mut load, &lp, name.clone())?;
+            let rl = rp.parse_lean(&mut load, name.clone())?;
             for tk in rl.cmds { println!("{}", tk) }
         },
         Action::None => args.print_usage_and_exit(1)

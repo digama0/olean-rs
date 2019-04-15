@@ -1,12 +1,13 @@
 use std::rc::Rc;
+use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 use num::bigint::BigInt;
 
-#[derive(PartialEq, Eq, Hash, Clone)] pub struct Name(Rc<Name2>);
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)] pub struct Name(Rc<Name2>);
 
-#[derive(PartialEq, Eq, Hash)] pub enum Name2 {
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)] pub enum Name2 {
     Anon,
     Str(Name, String),
     Num(Name, u32)
@@ -141,6 +142,21 @@ pub type Expr = Rc<Expr2>;
     Macro(MacroDef, Vec<Expr>)
 }
 
+fn list_consts_acc (e : &Expr, s : &mut BTreeSet<Name>) {
+    match e.deref() {
+        Expr2::Var(_) => { }
+        Expr2::Sort(_) => { }
+        Expr2::Const(n,_) => { s.insert(n.clone()); }
+        Expr2::MVar(_,_,e) => { list_consts_acc(e, s) }
+        Expr2::Local(_,_,_,e) => { list_consts_acc(e, s) }
+        Expr2::App(e0,e1) => { list_consts_acc(e0, s); list_consts_acc(e1, s) }
+        Expr2::Lam(_,_,e0,e1) => { list_consts_acc(e0, s); list_consts_acc(e1, s) }
+        Expr2::Pi(_,_,e0,e1) => { list_consts_acc(e0, s); list_consts_acc(e1, s) }
+        Expr2::Let(_,e0,e1,e2) => { list_consts_acc(e0, s); list_consts_acc(e1, s); list_consts_acc(e2, s) }
+        Expr2::Macro(_,es) => { for e in es { list_consts_acc(e,s) } }
+    }
+}
+
 #[derive(Debug)] pub struct EquationsHeader {
     pub num_fns: u32,
     pub is_private: bool,
@@ -245,6 +261,25 @@ impl Debug for ModuleName {
     Thm{name: Name, ps: Vec<Name>, ty: Expr, val: Expr},
     Cnst{name: Name, ps: Vec<Name>, ty: Expr, is_trusted: bool},
     Ax{name: Name, ps: Vec<Name>, ty: Expr}
+}
+
+impl Declaration {
+    pub fn name (&self) -> Name {
+        match &self {
+            Declaration::Defn { name: n, ps: _, ty: _, val: _, hints: _, is_trusted: _ } => n.clone(),
+            Declaration::Thm  { name: n, ps: _, ty: _, val: _ } => n.clone(),
+            Declaration::Cnst { name: n, ps: _, ty: _, is_trusted: _ } => n.clone(),
+            Declaration::Ax   { name: n, ps: _, ty: _ } => n.clone()
+        } }
+    pub fn ref_symbols_acc(&self, set : &mut BTreeSet<Name>) {
+        match &self {
+            Declaration::Defn { name: _, ps: _, ty: t, val: e, hints: _, is_trusted: _ } =>
+            { list_consts_acc(t,set); list_consts_acc(e,set); },
+            Declaration::Thm  { name: _, ps: _, ty: t, val: e } =>
+            { list_consts_acc(t,set); list_consts_acc(e,set); },
+            Declaration::Cnst { name: _, ps: _, ty: t, is_trusted: _ } => list_consts_acc(t,set),
+            Declaration::Ax   { name: _, ps: _, ty: t } => list_consts_acc(t,set)
+        } }
 }
 
 #[derive(Debug)] pub struct PosInfo { pub line: u32, pub col: u32 }

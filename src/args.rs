@@ -37,6 +37,7 @@ fn elan_find_it<P>(exe_name: P) -> Option<PathBuf>
 pub enum Action {
     Dump(PathBuf),
     Dependents(types::Name),
+    Unused(types::Name),
     Lex(types::Name),
     Test(types::Name),
     None
@@ -71,6 +72,7 @@ pub fn args() -> io::Result<Args> {
     opts.optflag("L", "", "give location of lean library");
     opts.optopt("d", "deps", "view all dependents of the target file", "lean.name");
     opts.optopt("p", "", "set current working directory", "DIR");
+    opts.optopt("u", "unused", "list unused imports", "lean.name");
     opts.optopt("l", "", "test lexer", "lean.name");
     opts.optopt("t", "", "testing", "lean.name");
     opts.optflag("h", "help", "print this help menu");
@@ -95,6 +97,9 @@ pub fn args() -> io::Result<Args> {
     }
     if let Some(s) = matches.opt_str("t") {
         args.act = Action::Test(types::parse_name(&s))
+    }
+    if let Some(s) = matches.opt_str("u") {
+        args.act = Action::Unused(types::parse_name(&s))
     }
     if matches.opt_present("h") {
         args.print_usage_and_exit(0)
