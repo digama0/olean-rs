@@ -38,6 +38,7 @@ pub enum Action {
     Dump(PathBuf),
     Dependents(types::Name),
     Unused(PathBuf),
+    Makefile,
     Lex(types::Name),
     Test(types::Name),
     None
@@ -75,6 +76,7 @@ pub fn args() -> io::Result<Args> {
     opts.optopt("u", "unused", "list unused imports", "lean.name");
     opts.optopt("l", "", "test lexer", "lean.name");
     opts.optopt("t", "", "testing", "lean.name");
+    opts.optflag("m", "makefile", "generate a makefile to build project");
     opts.optflag("h", "help", "print this help menu");
     let matches = opts.parse(&args[1..]).unwrap();
     let mut args = Args {
@@ -101,6 +103,9 @@ pub fn args() -> io::Result<Args> {
     if let Some(s) = matches.opt_str("u") {
         // args.act = Action::Unused(types::parse_name(&s))
         args.act = Action::Unused(PathBuf::from(s))
+    }
+    if matches.opt_present("m") {
+        args.act = Action::Makefile
     }
     if matches.opt_present("h") {
         args.print_usage_and_exit(0)

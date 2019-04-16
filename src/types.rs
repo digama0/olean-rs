@@ -47,6 +47,19 @@ impl Name {
             Name2::Num(_, s) => Name::anon().num(*s)
         }
     }
+    pub fn components(&self) -> Vec<String> {
+        match self.deref() {
+            Name2::Anon => Vec::new(),
+            Name2::Str(n, s) => { let mut v = n.components(); v.push(s.clone()); v },
+            Name2::Num(n, s) => { let mut v = n.components(); v.push(s.to_string()); v } } }
+
+    pub fn is_prefix_of(&self, other : &Name) -> bool {
+        let c1 = self.components();
+        let c2 = other.components();
+        let mut i1 = c1.iter();
+        let mut i2 = c2.iter();
+        for _x in (&mut i1).zip(&mut i2).take_while(|x| x.0 == x.1) { }
+        i1.next() == None }
 
     pub fn append(self, other: &Name2) -> Name {
         match other {
@@ -314,6 +327,10 @@ pub enum ElabStrategy { Simple, WithExpectedType, AsEliminator }
     pub record: AttrRecord
 }
 
+impl AttrEntry {
+    pub fn name(&self) -> Name {
+        self.record.0.clone() } }
+
 #[derive(Debug)] pub struct InductiveDecl {
     pub name: Name,
     pub level_params: Vec<Name>,
@@ -338,6 +355,11 @@ pub enum ElabStrategy { Simple, WithExpectedType, AsEliminator }
     pub num_indices: u32,
     pub is_trusted: bool,
     pub comp_rules: Vec<CompRule>
+}
+
+impl InductiveDefn {
+    pub fn name(&self) -> Name {
+        self.decl.name.clone() }
 }
 
 #[derive(Debug, FromPrimitive)]
@@ -406,6 +428,14 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
     Instance(Name, Name, u32),
     Tracker(Name, Name),
 }
+
+impl ClassEntry {
+    pub fn name(&self) -> Name {
+        match self {
+            ClassEntry::Class(n) => n.clone(),
+            ClassEntry::Instance(n,_,_) => n.clone(),
+            ClassEntry::Tracker(n,_) => n.clone()
+        } } }
 
 #[derive(Debug)] pub struct ProjectionInfo {
     pub constr: Name,
@@ -536,4 +566,15 @@ impl fmt::Display for OLean {
         writeln!(f, "uses sorry: {}", self.uses_sorry)?;
         writeln!(f, "imports: {:?}", self.imports)
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::types::*;
+    #[test]
+    fn my_type() {
+        println!("tactic: {:?}", name![tactic].components());
+        println!("tactic.interactive: {:?}", name![tactic.interactive].components());
+        assert!(name![tactic].is_prefix_of(&name![tactic.interactive]),"Name::is_prefix_of") }
 }

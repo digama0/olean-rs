@@ -11,11 +11,16 @@ mod rough_parser;
 
 use std::io;
 use std::fs::File;
+use std::io::prelude::*;
+use std::ffi::{OsString};
+
 use self::args::*;
 use self::leanpath::LeanPath;
 use self::loader::Loader;
 use self::tokens::TokenTable;
 use self::rough_parser::RoughParser;
+use walkdir::WalkDir;
+// use crate::leanpath;
 
 #[macro_use] extern crate num_derive;
 extern crate getopts;
@@ -50,11 +55,42 @@ fn main() -> io::Result<()> {
             // for s in &load.order { println!("{}", s) }
             let x = load.unused_imports(&name);
             if !x.is_empty() {
-                println!("* unused imports for {:?}", name);
+                println!("\n\n* unused imports for {:?}", name);
                 for s in &x {
                     let xs : Vec<String> = s.iter().map(|x| format!("{:?}", x)).collect();
                     println!("{}",  xs.join(", ")) };
+                println!("\n");
                 ::std::process::exit(-1) }
+        },
+        Action::Makefile => {
+            use leanpath::path_to_name_inner;
+            let lp = LeanPath::new(&args)?;
+            let mut load = Loader::new(lp.clone());
+            let mut file = File::create("Makefile")?;
+            file.write( "%.olean: %.lean\n".as_bytes() )?;
+            file.write( "\tlean --make $<\n".as_bytes() )?;
+            file.write( "\tolean-rs -u $@\n\n".as_bytes() )?;
+            let mut src = Vec::new();
+            for (dir,builtin) in lp.0.clone() {
+                let dir = dir.as_path();
+                if !builtin {
+                    for fp in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+                        let emp = OsString::from("");
+                        let path = fp.path();
+                        if path.is_file() && path.extension().unwrap_or(emp.as_os_str()) == "olean" {
+                            let rel_path = leanpath::make_relative(dir, path).expect(format!("{:?} should be included in {:?}", path, dir).as_str()).with_extension("olean");
+                            let n = path_to_name_inner(rel_path.as_path());
+                            load.load(n.clone())?;
+                            let mut deps : Vec<String> = Vec::new();
+                            for imp in &load.map.get(&n).expect(format!("{:?} not found", n).as_str()).0.imports {
+                                if let Some(x) = lp.find(imp.resolve(n.clone()), "olean")
+                                    .and_then(|p| lp.make_local(p.1.as_path())) {
+                                        deps.push(String::from(x.to_string_lossy())) } }
+                            let path_str : String = String::from(rel_path.to_string_lossy());
+                            src.push(path_str.clone());
+                            let out = format!("{}: {}\n", path_str, deps.join(" "));
+                            file.write(out.as_bytes())?; } } } }
+            file.write(format!("all: {}", src.join(" ")).as_bytes())?;
         },
         Action::Lex(name) => {
             let lp = LeanPath::new(&args)?;

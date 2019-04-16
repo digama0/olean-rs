@@ -62,9 +62,39 @@ impl Loader {
                 arr.push(&d) } }
         arr }
 
+    fn type_decls(m : &[Modification]) -> Vec<&InductiveDefn> {
+        let mut arr: Vec<&InductiveDefn> = Vec::new();
+        for x in m {
+            if let Modification::Inductive{ defn: d, trust_lvl: _ } = &x {
+                arr.push(&d) } }
+        arr }
+
+    fn class_entry(m : &[Modification]) -> Vec<&ClassEntry> {
+        let mut arr: Vec<&ClassEntry> = Vec::new();
+        for x in m {
+            if let Modification::Class(entry) = &x {
+                arr.push(&entry) } }
+        arr }
+
+    fn attributes(m : &[Modification]) -> Vec<&AttrEntry> {
+        let mut arr: Vec<&AttrEntry> = Vec::new();
+        for x in m {
+            if let Modification::Attr(entry) = &x {
+                arr.push(&entry) } }
+        arr }
+
     pub fn exported_syms(&mut self, n : &Name) -> Option<BTreeSet<Name>> {
-        let b = Loader::decls(Loader::get_mods2(&mut self.map, n.clone()).expect("exported_syms"));
-        let set: BTreeSet<Name> = b.iter().map(|d| d.name()).collect();
+        let mods = Loader::get_mods2(&mut self.map, n.clone()).expect("exported_syms");
+        let decls = Loader::decls(mods);
+        let type_decl = Loader::type_decls(mods);
+        let attributes = Loader::attributes(mods);
+        let class_entry = Loader::class_entry(mods);
+        let set: BTreeSet<Name> =
+            decls.iter().map(|d| d.name())
+            .chain(type_decl.iter().map(|d| d.name()))
+            .chain(attributes.iter().map(|d| d.name()))
+            .chain(class_entry.iter().map(|d| d.name()))
+            .collect();
         Some(set) }
 
     pub fn used_syms(&mut self, n : &Name) -> Option<BTreeSet<Name>> {
@@ -75,7 +105,7 @@ impl Loader {
         }
         Some(set) }
 
-    pub fn iter_imports<'a>(&mut self, n : &Name) -> std::slice::Iter<ModuleName> {
+    pub fn iter_imports(&mut self, n : &Name) -> std::slice::Iter<ModuleName> {
         let msg = format!("unknown module 1 {:?}", n);
         let (ol,_) = self.map.get(&n).expect(msg.as_str());
         ol.imports.iter()
@@ -83,18 +113,18 @@ impl Loader {
     pub fn unused_imports(&mut self, n : &Name) -> Vec<Vec<Name>> {
         let msg = format!("unknown module 1 {:?}", n);
         let s = self.used_syms(n).expect(msg.as_str());
-        let tactic_inter : Name = name![tactic.interactive];
         let tactic : Name = name![tactic];
-        if s.iter().any(|n| n.parent() == tactic || n.parent() == tactic_inter) ||
+        if s.iter().any(|n| tactic.is_prefix_of(&n)) ||
             n.drop_prefix() == name![default]
         { return Vec::new() }
         let mut path = LinkedList::new();
         let mut result = Vec::new();
+        // println!("*** used symbols");
+        // for x in &s {  println!("- {:?}", x) }
         self.unused_imports_acc(n,&s,&mut path,&mut result);
         result }
 
     pub fn unused_imports_acc(&mut self, n : &Name, s : &BTreeSet<Name>, path : &mut LinkedList<Name>, result : &mut Vec<Vec<Name>>) {
-        let tactic_inter : Name = name![tactic.interactive];
         let tactic : Name = name![tactic];
         let msg = format!("unknown module 2 {:?}", n);
         let (ol,_) = self.map.get(&n).expect(msg.as_str());
@@ -110,8 +140,13 @@ impl Loader {
                 } else if self.map.contains_key(&def_name) {
                     self.unused_imports_acc(&def_name, s, path, result)
                 } else {
-                    if syms.is_disjoint(&s) && !syms.iter().any(|n| n.parent() == tactic || n.parent() == tactic_inter) {
-                        result.push(path.iter().cloned().collect()) } }
+                    // println!("*** for module '{:?}'", m);
+                    if syms.is_disjoint(&s) && !syms.iter().any(|n| tactic.is_prefix_of(&n)) {
+                        // for x in &syms { println!("- {:?}", x) }
+                        result.push(path.iter().cloned().collect())
+                    }
+                    // else { println!("- <skip>") }
+                }
                 path.pop_front(); }
         }
     }
