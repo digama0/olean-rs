@@ -26,11 +26,27 @@ fn name_to_path(n: &Name2) -> Option<PathBuf> {
     }
 }
 
-pub fn path_to_name(n: &Path) -> Name {
+fn path_to_name_inner(n: &Path) -> Name {
     if let Some (fp) = n.file_stem() {
-        // n.pop();
-        path_to_name(n.parent().expect("bad path")).str(fp.to_str().expect("invalid string").to_string())
+        path_to_name_inner(n.parent().expect("bad path")).str(fp.to_str().expect("invalid string").to_string())
     } else { Name::anon() } }
+
+pub fn path_to_name(lp : &LeanPath, n: &Path) -> Option<Name> {
+    Some (path_to_name_inner(lp.make_relative(n.canonicalize().expect(format!("path not found: {:?}", n).as_str()).as_path())?.as_path()))
+}
+
+pub fn make_relative(dir : &Path, fp : &Path) -> Option<PathBuf> {
+    let mut it0 = dir.components();
+    let mut it1 = fp.components();
+    let it2 = (&mut it0).zip(&mut it1).take_while(|x| x.0 == x.1);
+    for _x in it2 { }
+    if let Some(_) = it0.next() {
+        None
+    } else {
+        Some(it1.as_path().to_path_buf()) }
+}
+
+
 impl LeanPath {
 
     pub fn new(args: &args::Args) -> io::Result<LeanPath> {
@@ -49,6 +65,13 @@ impl LeanPath {
             }
         }
         Ok(LeanPath(res))
+    }
+
+    pub fn make_relative(&self, p: &Path) -> Option<PathBuf> {
+        for ref dir in &self.0 {
+            if let Some(fp) = make_relative(dir,p) {
+                return Some(fp) } }
+        None
     }
 
     pub fn find_path(&self, p: &Path) -> Option<PathBuf> {
