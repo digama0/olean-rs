@@ -37,7 +37,7 @@ fn elan_find_it<P>(exe_name: P) -> Option<PathBuf>
 pub enum Action {
     Dump(PathBuf),
     Dependents(types::Name),
-    Unused(types::Name),
+    Unused(PathBuf),
     Lex(types::Name),
     Test(types::Name),
     None
@@ -99,7 +99,8 @@ pub fn args() -> io::Result<Args> {
         args.act = Action::Test(types::parse_name(&s))
     }
     if let Some(s) = matches.opt_str("u") {
-        args.act = Action::Unused(types::parse_name(&s))
+        // args.act = Action::Unused(types::parse_name(&s))
+        args.act = Action::Unused(PathBuf::from(s))
     }
     if matches.opt_present("h") {
         args.print_usage_and_exit(0)

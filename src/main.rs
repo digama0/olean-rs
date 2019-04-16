@@ -40,15 +40,21 @@ fn main() -> io::Result<()> {
             load.load(name.clone())?;
             for s in load.order { println!("{}", s) }
         },
-        Action::Unused(name) => {
+        Action::Unused(file) => {
             let lp = LeanPath::new(&args)?;
+            let name = leanpath::path_to_name(file.as_path());
+            // lp.find(name, "olean");
             let mut load = Loader::new(lp);
             load.load(name.clone())?;
             // println!("* order");
             // for s in &load.order { println!("{}", s) }
-            println!("* unused imports");
             let x = load.unused_imports(&name);
-            for s in x { println!("{}", s) }
+            if !x.is_empty() {
+                println!("* unused imports for {:?}", name);
+                for s in &x {
+                    let xs : Vec<String> = s.iter().map(|x| format!("{:?}", x)).collect();
+                    println!("{}",  xs.join(", ")) };
+                ::std::process::exit(-1) }
         },
         Action::Lex(name) => {
             let lp = LeanPath::new(&args)?;

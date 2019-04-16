@@ -11,10 +11,4 @@ install:
 
 script:
   - cargo build
-  - lean --make test/simple.lean
-  - cargo run -- -D test/simple.olean | tail -n +2 > test/simple.lean.actual
-  - diff test/simple.lean.actual test/simple.lean.expected
-  - cd test
-  - leanpkg configure
-  - cargo run -- -d simple | tail -n +2 > leanpkg.actual
-  - diff leanpkg.actual leanpkg.expected
+  - sh run_tests.sh

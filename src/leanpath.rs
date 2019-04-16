@@ -26,6 +26,11 @@ fn name_to_path(n: &Name2) -> Option<PathBuf> {
     }
 }
 
+pub fn path_to_name(n: &Path) -> Name {
+    if let Some (fp) = n.file_stem() {
+        // n.pop();
+        path_to_name(n.parent().expect("bad path")).str(fp.to_str().expect("invalid string").to_string())
+    } else { Name::anon() } }
 impl LeanPath {
 
     pub fn new(args: &args::Args) -> io::Result<LeanPath> {

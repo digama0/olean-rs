@@ -40,6 +40,13 @@ impl Name {
     pub fn parent(&self) -> Name { self.0.parent() }
     pub fn str(self, s: String) -> Name { Name::new(Name2::Str(self, s)) }
     pub fn num(self, s: u32) -> Name { Name::new(Name2::Num(self, s)) }
+    pub fn drop_prefix(&self) -> Name {
+        match self.deref() {
+            Name2::Anon => Name::anon(),
+            Name2::Str(_, s) => Name::anon().str(s.clone()),
+            Name2::Num(_, s) => Name::anon().num(*s)
+        }
+    }
 
     pub fn append(self, other: &Name2) -> Name {
         match other {

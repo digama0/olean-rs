@@ -1,5 +1,6 @@
 use std::collections::hash_map::HashMap;
 use std::collections::BTreeSet;
+use std::collections::LinkedList;
 use std::io;
 use std::fs::File;
 use crate::types::*;
@@ -74,20 +75,44 @@ impl Loader {
         }
         Some(set) }
 
-    pub fn unused_imports(&mut self, n : &Name) -> Vec<Name> {
+    pub fn iter_imports<'a>(&mut self, n : &Name) -> std::slice::Iter<ModuleName> {
+        let msg = format!("unknown module 1 {:?}", n);
+        let (ol,_) = self.map.get(&n).expect(msg.as_str());
+        ol.imports.iter()
+    }
+    pub fn unused_imports(&mut self, n : &Name) -> Vec<Vec<Name>> {
         let msg = format!("unknown module 1 {:?}", n);
         let s = self.used_syms(n).expect(msg.as_str());
+        let tactic_inter : Name = name![tactic.interactive];
+        let tactic : Name = name![tactic];
+        if s.iter().any(|n| n.parent() == tactic || n.parent() == tactic_inter) ||
+            n.drop_prefix() == name![default]
+        { return Vec::new() }
+        let mut path = LinkedList::new();
+        let mut result = Vec::new();
+        self.unused_imports_acc(n,&s,&mut path,&mut result);
+        result }
+
+    pub fn unused_imports_acc(&mut self, n : &Name, s : &BTreeSet<Name>, path : &mut LinkedList<Name>, result : &mut Vec<Vec<Name>>) {
+        let tactic_inter : Name = name![tactic.interactive];
+        let tactic : Name = name![tactic];
         let msg = format!("unknown module 2 {:?}", n);
         let (ol,_) = self.map.get(&n).expect(msg.as_str());
         let n2 : Name = self.lean_path.find(n.clone(), "olean").expect(msg.as_str()).0;
         let imps : Vec<Name> = ol.imports.iter().map(|m| m.resolve(n2.clone())).collect();
-        let mut r : Vec<Name> = Vec::new();
         for m in imps {
             if m != name![init] {
                 let syms : BTreeSet<Name> = self.exported_syms(&m).expect(format!("unknown module {:?}", m).as_str());
-                if syms.is_disjoint(&s) {
-                    r.push(m.clone()) } }
+                path.push_front(m.clone());
+                let def_name = m.clone().str("default".to_string());
+                if m.drop_prefix() == name![default] {
+                    self.unused_imports_acc(&m, s, path, result)
+                } else if self.map.contains_key(&def_name) {
+                    self.unused_imports_acc(&def_name, s, path, result)
+                } else {
+                    if syms.is_disjoint(&s) && !syms.iter().any(|n| n.parent() == tactic || n.parent() == tactic_inter) {
+                        result.push(path.iter().cloned().collect()) } }
+                path.pop_front(); }
         }
-        r
     }
 }
