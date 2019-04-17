@@ -36,7 +36,7 @@ fn elan_find_it<P>(exe_name: P) -> Option<PathBuf>
 
 pub enum Action {
     Dump(PathBuf),
-    Dependents(types::Name),
+    Dependents(PathBuf),
     Unused(PathBuf),
     Makefile,
     Lex(types::Name),
@@ -53,7 +53,7 @@ pub struct Args {
 
 impl Args {
     pub fn print_usage_and_exit(&self, code: i32) -> ! {
-        let brief = format!("Usage: {} path/to/file.olean [options]", self.program);
+        let brief = format!("Usage: {} [options]", self.program);
         print!("{}", self.opts.usage(&brief));
         exit(code)
     }
@@ -70,13 +70,13 @@ pub fn args() -> io::Result<Args> {
 
     let mut opts = Options::new();
     opts.optopt("D", "dump", "dump olean parse", "FILE");
+    opts.optopt("d", "deps", "view all dependents of the target file", "FILE");
+    opts.optopt("u", "unused", "list unused imports", "FILE");
+    opts.optflag("m", "makefile", "generate a makefile to build and check project");
     opts.optflag("L", "", "give location of lean library");
-    opts.optopt("d", "deps", "view all dependents of the target file", "lean.name");
     opts.optopt("p", "", "set current working directory", "DIR");
-    opts.optopt("u", "unused", "list unused imports", "lean.name");
     opts.optopt("l", "", "test lexer", "lean.name");
     opts.optopt("t", "", "testing", "lean.name");
-    opts.optflag("m", "makefile", "generate a makefile to build project");
     opts.optflag("h", "help", "print this help menu");
     let matches = opts.parse(&args[1..]).unwrap();
     let mut args = Args {
@@ -92,7 +92,8 @@ pub fn args() -> io::Result<Args> {
         args.library = Some(PathBuf::from(s))
     }
     if let Some(s) = matches.opt_str("d") {
-        args.act = Action::Dependents(types::parse_name(&s))
+        args.act = Action::Dependents(PathBuf::from(s))
+        // args.act = Action::Dependents(types::parse_name(&s))
     }
     if let Some(s) = matches.opt_str("l") {
         args.act = Action::Lex(types::parse_name(&s))

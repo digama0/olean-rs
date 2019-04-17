@@ -542,8 +542,8 @@ impl Deserialize<ClassEntry> for Deserializer {
         let k: u8 = self.read(d)?;
         Ok(match k {
             0 => ClassEntry::Class(self.read(d)?),
-            1 => ClassEntry::Instance(self.read(d)?, self.read(d)?, self.read(d)?),
-            2 => ClassEntry::Tracker(self.read(d)?, self.read(d)?),
+            1 => ClassEntry::Instance{ class: self.read(d)?, instance: self.read(d)?, prio: self.read(d)? },
+            2 => ClassEntry::Tracker{ class: self.read(d)?, track_attr: self.read(d)? },
             _ => throw("bad class entry")?
         })
     }

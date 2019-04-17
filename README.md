@@ -18,14 +18,16 @@ cargo build
 ## Getting Started
 
 ```
-Usage: target/debug/olean-rs path/to/file.olean [options]
+Usage: target/debug/olean-rs [options]
 
 Options:
-    -D, --dump FILE      dump olean parse
-    -L                   give location of lean library
-    -d, --deps lean.name view all dependents of the target file
-    -p DIR               set current working directory
-    -l lean.name         test lexer
-    -t lean.name         testing
-    -h, --help           print this help menu
+    -D, --dump FILE     dump olean parse
+    -d, --deps FILE     view all dependents of the target file
+    -u, --unused FILE   list unused imports
+    -L                  give location of lean library
+    -p DIR              set current working directory
+    -l lean.name        test lexer
+    -t lean.name        testing
+    -m, --makefile      generate a makefile to build project
+    -h, --help          print this help menu
 ```

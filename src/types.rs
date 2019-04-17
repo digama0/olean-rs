@@ -425,16 +425,16 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
 
 #[derive(Debug)] pub enum ClassEntry {
     Class(Name),
-    Instance(Name, Name, u32),
-    Tracker(Name, Name),
+    Instance { class: Name, instance: Name, prio: u32 },
+    Tracker{ class: Name, track_attr: Name },
 }
 
 impl ClassEntry {
     pub fn name(&self) -> Name {
         match self {
             ClassEntry::Class(n) => n.clone(),
-            ClassEntry::Instance(n,_,_) => n.clone(),
-            ClassEntry::Tracker(n,_) => n.clone()
+            ClassEntry::Instance{ instance: n, .. } => n.clone(),
+            ClassEntry::Tracker{ track_attr: n, .. } => n.clone()
         } } }
 
 #[derive(Debug)] pub struct ProjectionInfo {

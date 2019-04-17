@@ -39,8 +39,9 @@ fn main() -> io::Result<()> {
                 println!("{:?}", m);
             }
         },
-        Action::Dependents(name) => {
+        Action::Dependents(file) => {
             let lp = LeanPath::new(&args)?;
+            let name = leanpath::path_to_name(&lp, file.as_path()).expect(format!("cannot resolve path: {:?}", file).as_str());
             let mut load = Loader::new(lp);
             load.load(name.clone())?;
             for s in load.order { println!("{}", s) }
