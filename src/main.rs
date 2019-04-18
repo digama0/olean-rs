@@ -7,6 +7,7 @@ mod loader;
 mod tokens;
 mod lexer;
 mod rough_parser;
+mod union_find;
 #[allow(dead_code)] mod trie;
 
 use std::io;
@@ -49,7 +50,6 @@ fn main() -> io::Result<()> {
         Action::Unused(file) => {
             let lp = LeanPath::new(&args)?;
             let name = leanpath::path_to_name(&lp, file.as_path()).expect(format!("cannot resolve path: {:?}", file).as_str());
-            // lp.find(name, "olean");
             let mut load = Loader::new(lp);
             load.load(name.clone())?;
             // println!("* order");
@@ -63,6 +63,21 @@ fn main() -> io::Result<()> {
                 println!("\n");
                 ::std::process::exit(-1) }
         },
+        Action::Clique(file) => {
+            let lp = LeanPath::new(&args)?;
+            let name = leanpath::path_to_name(&lp, file.as_path()).expect(format!("cannot resolve path: {:?}", file).as_str());
+            let mut load = Loader::new(lp);
+            load.load(name.clone())?;
+            let x = load.find_cliques(&name);
+            if x.len() > 1 {
+                for (i,(c,x)) in x.iter().enumerate() {
+                    println!("* Clique: {}", i);
+                    for a in c { println!("{}", a) }
+                    println!("\n* Imports:");
+                    for a in x { println!("{}", a) }
+                    println!("\n") }
+                ::std::process::exit(-1) }
+        },
         Action::Makefile => {
             use leanpath::path_to_name_inner;
             let lp = LeanPath::new(&args)?;
@@ -70,7 +85,8 @@ fn main() -> io::Result<()> {
             let mut file = File::create("Makefile")?;
             file.write( "%.olean: %.lean\n".as_bytes() )?;
             file.write( "\tlean --make $<\n".as_bytes() )?;
-            file.write( "\tolean-rs -u $@\n\n".as_bytes() )?;
+            file.write( "\tolean-rs -u $@ || (touch $< && exit -1)\n\n".as_bytes() )?;
+            file.write( "\tolean-rs -c $@ || (touch $< && exit -1)\n\n".as_bytes() )?;
             let mut src = Vec::new();
             for (dir,builtin) in lp.0.clone() {
                 let dir = dir.as_path();

@@ -38,6 +38,7 @@ pub enum Action {
     Dump(PathBuf),
     Dependents(PathBuf),
     Unused(PathBuf),
+    Clique(PathBuf),
     Makefile,
     Lex(types::Name),
     Test(types::Name),
@@ -73,6 +74,7 @@ pub fn args() -> io::Result<Args> {
     opts.optopt("d", "deps", "view all dependents of the target file", "FILE");
     opts.optopt("u", "unused", "list unused imports", "FILE");
     opts.optflag("m", "makefile", "generate a makefile to build and check project");
+    opts.optopt("c", "clique", "find sets of declarations that depend on separate sets of imports", "FILE");
     opts.optflag("L", "", "give location of lean library");
     opts.optopt("p", "", "set current working directory", "DIR");
     opts.optopt("l", "", "test lexer", "lean.name");
@@ -104,6 +106,10 @@ pub fn args() -> io::Result<Args> {
     if let Some(s) = matches.opt_str("u") {
         // args.act = Action::Unused(types::parse_name(&s))
         args.act = Action::Unused(PathBuf::from(s))
+    }
+    if let Some(s) = matches.opt_str("c") {
+        // args.act = Action::Unused(types::parse_name(&s))
+        args.act = Action::Clique(PathBuf::from(s))
     }
     if matches.opt_present("m") {
         args.act = Action::Makefile

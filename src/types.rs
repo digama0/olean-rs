@@ -300,6 +300,10 @@ impl Declaration {
             Declaration::Cnst { name: _, ps: _, ty: t, is_trusted: _ } => list_consts_acc(t,set),
             Declaration::Ax   { name: _, ps: _, ty: t } => list_consts_acc(t,set)
         } }
+    pub fn ref_symbols(&self) -> BTreeSet<Name> {
+        let mut r = BTreeSet::new();
+        self.ref_symbols_acc(&mut r);
+        r }
 }
 
 #[derive(Debug)] pub struct PosInfo { pub line: u32, pub col: u32 }
