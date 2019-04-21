@@ -12,3 +12,12 @@ install:
 script:
   - cargo build
   - sh run_tests.sh
+  - cargo build --release
+  - mv target/release/olean-rs target/release/olean-rs-linux
+deploy:
+  provider: releases
+  api_key: $GITHUB_TOKEN
+  file: target/release/olean-rs-linux
+  skip_cleanup: true
+  on:
+    tags: true

@@ -11,8 +11,9 @@ mod union_find;
 #[allow(dead_code)] mod trie;
 
 use std::io;
+use std::io::{Write};
+use std::path::*;
 use std::fs::File;
-use std::io::prelude::*;
 use std::ffi::{OsString};
 
 use self::args::*;
@@ -87,7 +88,21 @@ fn main() -> io::Result<()> {
             file.write( "\tlean --make $<\n".as_bytes() )?;
             file.write( "\tolean-rs -u $@ || (touch $< && exit -1)\n\n".as_bytes() )?;
             file.write( "\tolean-rs -c $@ || (touch $< && exit -1)\n\n".as_bytes() )?;
-            let mut src = Vec::new();
+
+            file.write( "\n".as_bytes() )?;
+            file.write( "_check/%.clique: %.olean\n".as_bytes() )?;
+            file.write( "\tmkdir -p $(@D)\n".as_bytes() )?;
+            file.write( "\ttouch $@\n".as_bytes() )?;
+            file.write( "\tolean-rs -c $<\n".as_bytes() )?;
+
+            file.write( "\n".as_bytes() )?;
+            file.write( "_check/%.unused: %.olean\n".as_bytes() )?;
+            file.write( "\tmkdir -p $(@D)\n".as_bytes() )?;
+            file.write( "\tolean-rs -u $<\n".as_bytes() )?;
+            file.write( "\ttouch $@\n".as_bytes() )?;
+
+            let mut src : Vec<PathBuf> = Vec::new();
+            let mut src_str : Vec<String> = Vec::new();
             for (dir,builtin) in lp.0.clone() {
                 let dir = dir.as_path();
                 if !builtin {
@@ -104,10 +119,21 @@ fn main() -> io::Result<()> {
                                     .and_then(|p| lp.make_local(p.1.as_path())) {
                                         deps.push(String::from(x.to_string_lossy())) } }
                             let path_str : String = String::from(rel_path.to_string_lossy());
-                            src.push(path_str.clone());
+                            src.push(rel_path.clone());
+                            src_str.push(path_str.clone());
                             let out = format!("{}: {}\n", path_str, deps.join(" "));
                             file.write(out.as_bytes())?; } } } }
-            file.write(format!("all: {}", src.join(" ")).as_bytes())?;
+            file.write(format!("all: {}\n", src_str.join(" ")).as_bytes())?;
+            for (i,x) in (&src).iter().enumerate() {
+                let mut root = PathBuf::from("_check");
+                root.push(x.as_path()); root.set_extension("clique");
+                src_str[i] = String::from(root.to_string_lossy()) }
+            file.write(format!("clique: {}\n", src_str.join(" ")).as_bytes())?;
+            for (i,x) in (&src).iter().enumerate() {
+                let mut root = PathBuf::from("_check");
+                root.push(x.as_path()); root.set_extension("unused");
+                src_str[i] = String::from(root.to_string_lossy()) }
+            file.write(format!("unused: {}\n", src_str.join(" ")).as_bytes())?;
         },
         Action::Lex(name) => {
             let lp = LeanPath::new(&args)?;
