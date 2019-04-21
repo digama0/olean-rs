@@ -56,10 +56,8 @@ impl Name {
     pub fn is_prefix_of(&self, other : &Name) -> bool {
         let c1 = self.components();
         let c2 = other.components();
-        let mut i1 = c1.iter();
-        let mut i2 = c2.iter();
-        for _x in (&mut i1).zip(&mut i2).take_while(|x| x.0 == x.1) { }
-        i1.next() == None }
+        let b = (c1.iter()).zip(c2.iter()).all(|x| x.0 == x.1);
+        b && c1.len() <= c2.len() }
 
     pub fn append(self, other: &Name2) -> Name {
         match other {

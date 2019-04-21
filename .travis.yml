@@ -10,7 +10,7 @@ install:
   - source ~/.elan/env
 
 script:
-  - cargo build
+  - cargo install --path .
   - sh run_tests.sh
   - cargo build --release
   - mv target/release/olean-rs target/release/olean-rs-linux

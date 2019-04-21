@@ -151,8 +151,6 @@ impl Loader {
         { return Vec::new() }
         let mut path = LinkedList::new();
         let mut result = Vec::new();
-        // println!("*** used symbols");
-        // for x in &s {  println!("- {:?}", x) }
         self.unused_imports_acc(n,&s,&mut path,&mut result);
         result }
 
@@ -172,10 +170,8 @@ impl Loader {
                 } else if self.map.contains_key(&def_name) {
                     self.unused_imports_acc(&def_name, s, path, result)
                 } else {
-                    // println!("*** for module '{:?}'", m);
                     if syms.is_disjoint(&s) && !syms.iter().any(|n| tactic.is_prefix_of(&n)) {
-                        // for x in &syms { println!("- {:?}", x) }
-                        result.push(path.iter().cloned().collect())
+                        result.push(path.iter().cloned().collect());
                     }
                     // else { println!("- <skip>") }
                 }
