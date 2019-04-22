@@ -2,22 +2,33 @@
 language: rust
 rust:
   - nightly
-install:
+before_install:
   - |
     if [ ! -d "$HOME/.elan/toolchains/" ]; then
       curl https://raw.githubusercontent.com/Kha/elan/master/elan-init.sh -sSf | sh -s -- --default-toolchain 3.4.2 -y
     fi
-  - source ~/.elan/env
+install:
+  - source $HOME/.elan/env || true
+  - lean -v
+
+matrix:
+  include:
+    - os: osx
+    - os: linux
+    - os: windows
+      install:
+        - source $HOME/.elan/env || true
+        - lean -v
 
 script:
   - cargo install --path .
   - sh run_tests.sh
   - cargo build --release
-  - mv target/release/olean-rs target/release/olean-rs-linux
+  - mv target/release/olean-rs target/release/olean-rs-$TRAVIS_OS_NAME
 deploy:
   provider: releases
   api_key: $GITHUB_TOKEN
-  file: target/release/olean-rs-linux
+  file: target/release/olean-rs-$TRAVIS_OS_NAME
   skip_cleanup: true
   on:
     tags: true

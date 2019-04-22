@@ -175,6 +175,10 @@ fn list_consts_acc (e : &Expr, s : &mut BTreeSet<Name>) {
     }
 }
 
+fn list_consts (e : &Expr) -> BTreeSet<Name> {
+    let mut s = BTreeSet::new();
+    list_consts_acc(e,&mut s); s }
+
 #[derive(Debug)] pub struct EquationsHeader {
     pub num_fns: u32,
     pub is_private: bool,
@@ -330,8 +334,14 @@ pub enum ElabStrategy { Simple, WithExpectedType, AsEliminator }
 }
 
 impl AttrEntry {
-    pub fn name(&self) -> Name {
-        self.record.0.clone() } }
+    pub fn names(&self) -> Vec<Name> {
+        let mut result = Vec::new();
+        result.push( self.record.0.clone() );
+        result.push( self.attr.clone() );
+        if let Some(AttrData::User(e)) = &self.record.1
+        { for x in list_consts(&e) {
+            result.push(x) } }
+        result } }
 
 #[derive(Debug)] pub struct InductiveDecl {
     pub name: Name,

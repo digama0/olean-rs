@@ -83,16 +83,25 @@ impl Loader {
                 arr.push(&entry) } }
         arr }
 
+    fn user_attributes(m : &[Modification]) -> Vec<Name> {
+        let mut arr: Vec<Name> = Vec::new();
+        for x in m {
+            if let Modification::UserAttribute(entry) = &x {
+                arr.push(entry.clone()) } }
+        arr }
+
     pub fn exported_syms(&mut self, n : &Name) -> BTreeSet<Name> {
         let mods = Loader::get_mods2(&mut self.map, n.clone()).expect("exported_syms");
         let decls = mods.iter().filter_map(decl_prism);
         let type_decl = Loader::type_decls(mods);
         let attributes = Loader::attributes(mods);
+        let user_attributes = Loader::user_attributes(mods);
         let class_entry = Loader::class_entry(mods);
         let set: BTreeSet<Name> =
             decls.map(|d| d.name())
             .chain(type_decl.iter().map(|d| d.name()))
-            .chain(attributes.iter().map(|d| d.name()))
+            .chain(user_attributes.iter().cloned())
+            .chain(attributes.iter().flat_map(|d| d.names()))
             .chain(class_entry.iter().map(|d| d.name()))
             .collect();
         set }
