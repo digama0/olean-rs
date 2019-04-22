@@ -21,12 +21,12 @@ matrix:
         - echo 'PATH="/c/Users/$USERNAME/.elan/bin:$PATH"' >> $HOME/.bashrc
         - source $HOME/.profile
         - source $HOME/.bashrc
-        - lean -v
+        - travis_wait lean -v
 
 script:
-  - cargo install --path .
-  - sh run_tests.sh
-  - cargo build --release
+  - travis_wait cargo install --path .
+  - travis_wait sh run_tests.sh
+  - travis_wait cargo build --release
   - mv target/release/olean-rs target/release/olean-rs-$TRAVIS_OS_NAME
 deploy:
   provider: releases
