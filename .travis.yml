@@ -15,13 +15,13 @@ matrix:
   include:
     - os: osx
     - os: linux
-    - os: windows
-      install:
-        - echo 'PATH="$HOME/.elan/bin:$PATH"' >> $HOME/.profile
-        - echo 'PATH="/c/Users/$USERNAME/.elan/bin:$PATH"' >> $HOME/.bashrc
-        - source $HOME/.profile
-        - source $HOME/.bashrc
-        - travis_wait lean -v
+    # - os: windows
+    #   install:
+    #     - echo 'PATH="$HOME/.elan/bin:$PATH"' >> $HOME/.profile
+    #     - echo 'PATH="/c/Users/$USERNAME/.elan/bin:$PATH"' >> $HOME/.bashrc
+    #     - source $HOME/.profile
+    #     - source $HOME/.bashrc
+    #     - travis_wait lean -v
 
 script:
   - travis_wait cargo install --path .

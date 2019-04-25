@@ -337,10 +337,10 @@ impl AttrEntry {
     pub fn names(&self) -> Vec<Name> {
         let mut result = Vec::new();
         result.push( self.record.0.clone() );
-        result.push( self.attr.clone() );
-        if let Some(AttrData::User(e)) = &self.record.1
-        { for x in list_consts(&e) {
-            result.push(x) } }
+        // result.push( self.attr.clone() );
+        // if let Some(AttrData::User(e)) = &self.record.1
+        // { for x in list_consts(&e) {
+        //     result.push(x) } }
         result } }
 
 #[derive(Debug)] pub struct InductiveDecl {
