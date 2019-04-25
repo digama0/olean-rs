@@ -107,11 +107,14 @@ impl Loader {
         set }
 
     pub fn used_syms(&mut self, n : &Name) -> BTreeSet<Name> {
-        let b = Loader::get_mods2(&mut self.map, n.clone()).expect("used_syms").iter().filter_map(decl_prism);
+        let mods = Loader::get_mods2(&mut self.map, n.clone()).expect("used_syms");
+        let decls = mods.iter().filter_map(decl_prism);
         let mut set: BTreeSet<Name> = BTreeSet::new();
-        for d in b {
+        for d in decls {
             d.ref_symbols_acc(&mut set)
         }
+        for attr in Loader::attributes(mods).iter().flat_map(|d| d.names()) {
+            set.insert(attr); }
         set }
 
     pub fn iter_imports(&mut self, n : &Name) -> std::slice::Iter<ModuleName> {

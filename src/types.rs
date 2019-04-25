@@ -175,9 +175,9 @@ fn list_consts_acc (e : &Expr, s : &mut BTreeSet<Name>) {
     }
 }
 
-fn list_consts (e : &Expr) -> BTreeSet<Name> {
-    let mut s = BTreeSet::new();
-    list_consts_acc(e,&mut s); s }
+// fn list_consts (e : &Expr) -> BTreeSet<Name> {
+//     let mut s = BTreeSet::new();
+//     list_consts_acc(e,&mut s); s }
 
 #[derive(Debug)] pub struct EquationsHeader {
     pub num_fns: u32,
