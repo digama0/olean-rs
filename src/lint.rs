@@ -81,10 +81,11 @@ pub fn check_unused_imports(name : &Name, load : &mut Loader) -> io::Result<bool
     // println!("* order");
     // for s in &load.order { println!("{}", s) }
     let x = load.unused_imports(&name);
-    println!("\n\n* unused imports for {:?}", name);
-    for s in &x {
-        println!("{}",  s) };
-    println!("\n");
+    if !x.is_empty() {
+        println!("\n\n* unused imports for {:?}", name);
+        for s in &x {
+            println!("{}",  s) };
+        println!("\n"); }
     Result::Ok(!x.is_empty())
 }
 

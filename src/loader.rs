@@ -76,7 +76,7 @@ impl Loader {
         let (ol, o) =
             if map.contains_key(&n) { map.get_mut(&n).expect("get_mods2: key not found") }
         else {
-            println!("not found: {:?}\n  - {:?}", n, map);
+            println!("not found: {:?}", n);
             map.get_mut(&n.clone().str("default".to_string()))? };
         if let Some(mods) = o { return Some(mods) }
         let mods = deserialize::read_olean_modifications(&ol.code).unwrap_or_else(|err|
@@ -197,7 +197,6 @@ impl Loader {
         let imps : Vec<Name> = ol.imports.iter().map(|m| m.resolve(n2.clone())).collect();
         for m in &imps {
             if *m != name![init] {
-                let syms : BTreeSet<Name> = self.exported_syms(&m);
                 let def_name = m.clone().str("default".to_string());
                 if m.drop_prefix() == name![default] {
                     let mut rep2 = Vec::new();
@@ -212,6 +211,7 @@ impl Loader {
                         rep.push(m.clone())
                     } else { rep.append(&mut ms) }
                 } else {
+                    let syms : BTreeSet<Name> = self.exported_syms(&m);
                     if syms.is_disjoint(&s) && !syms.iter().any(|n| tactic.is_prefix_of(&n)) {
                         // let mut rep: Vec<Name> = Vec::new();
                         self.find_replacement(&m,s,rep);

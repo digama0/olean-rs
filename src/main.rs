@@ -58,7 +58,8 @@ fn main() -> io::Result<()> {
             let name = path_to_name(&lp, file.as_path())
                 .expect(format!("cannot resolve path: {:?}", file).as_str());
             let mut load = Loader::new(lp);
-            check_unused_imports(&name,&mut load)?;
+            if check_unused_imports(&name,&mut load)? {
+                ::std::process::exit(-1) }
         },
         // Action::Lint(file) => {
         //     let lp = LeanPath::new_with_args(&args)?;
@@ -86,20 +87,20 @@ fn main() -> io::Result<()> {
             let mut file = File::create("Makefile")?;
             file.write( "%.olean: %.lean\n".as_bytes() )?;
             file.write( "\tlean --make $<\n".as_bytes() )?;
-            file.write( "\tolean-rs -u $@ || (touch $< && exit -1)\n\n".as_bytes() )?;
-            file.write( "\tolean-rs -c $@ || (touch $< && exit -1)\n\n".as_bytes() )?;
+            file.write( "\t@olean-rs -u $@ || (touch $< && exit -1)\n".as_bytes() )?;
+            // file.write( "\t@olean-rs -c $@ || (touch $< && exit -1)\n\n".as_bytes() )?;
 
             file.write( "\n".as_bytes() )?;
             file.write( "_check/%.clique: %.olean\n".as_bytes() )?;
-            file.write( "\tmkdir -p $(@D)\n".as_bytes() )?;
-            file.write( "\ttouch $@\n".as_bytes() )?;
-            file.write( "\tolean-rs -c $<\n".as_bytes() )?;
+            file.write( "\t@mkdir -p $(@D)\n".as_bytes() )?;
+            file.write( "\t@touch $@\n".as_bytes() )?;
+            file.write( "\t@olean-rs -c $<\n".as_bytes() )?;
 
             file.write( "\n".as_bytes() )?;
             file.write( "_check/%.unused: %.olean\n".as_bytes() )?;
-            file.write( "\tmkdir -p $(@D)\n".as_bytes() )?;
-            file.write( "\tolean-rs -u $<\n".as_bytes() )?;
-            file.write( "\ttouch $@\n".as_bytes() )?;
+            file.write( "\t@mkdir -p $(@D)\n".as_bytes() )?;
+            file.write( "\t@olean-rs -u $<\n".as_bytes() )?;
+            file.write( "\t@touch $@\n".as_bytes() )?;
 
             let mut src : Vec<PathBuf> = Vec::new();
             let mut src_str : Vec<String> = Vec::new();
