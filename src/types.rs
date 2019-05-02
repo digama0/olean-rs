@@ -160,6 +160,24 @@ pub type Expr = Rc<Expr2>;
     Macro(MacroDef, Vec<Expr>)
 }
 
+fn pi_head(e : &Expr) -> Expr {
+    use Expr2::*;
+    match e.deref() {
+        Pi(_,_,_,e) => pi_head(e),
+        _ => e.clone() } }
+
+fn is_app_of(n : &Name, e : &Expr) -> bool {
+    use Expr2::*;
+    match e.deref() {
+        App(e0, _e1) => is_app_of(n, e0),
+        Const(c,_) => c == n,
+        _ => false
+    }
+}
+
+pub fn is_tactic_type(e : &Expr) -> bool {
+    is_app_of(&name![tactic], &pi_head(e)) }
+
 fn list_consts_acc (e : &Expr, s : &mut BTreeSet<Name>) {
     match e.deref() {
         Expr2::Var(_) => { }

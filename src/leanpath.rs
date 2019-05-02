@@ -49,7 +49,18 @@ pub fn make_relative(dir : &Path, fp : &Path) -> Option<PathBuf> {
 
 impl LeanPath {
 
-    pub fn new(args: &args::Args) -> io::Result<LeanPath> {
+    pub fn new_with_args(args : &args::Args) -> io::Result<LeanPath> {
+        let lib = args.library().unwrap_or_else(||
+            panic!("can't find lean; use the -L switch to say where the lean root is"));
+        LeanPath::new_with_lib(&lib) }
+
+    pub fn new() -> io::Result<LeanPath> {
+        let path = args::Args::lean_path().unwrap_or_else(||
+            panic!("can't find lean; use the -L switch to say where the lean root is"));
+        LeanPath::new_with_lib(&path)
+    }
+
+    pub fn new_with_lib(lib: &PathBuf) -> io::Result<LeanPath> {
         let path = get_leanpkg_path_file().unwrap_or_else(||
             panic!("can't find leanpkg.path; make sure you are in a lean project"));
         let mut res = Vec::new();
@@ -58,8 +69,6 @@ impl LeanPath {
             if l.starts_with("path ") {
                 res.push((path.parent().unwrap().join(&l[5..]),false));
             } else if l == "builtin_path" {
-                let lib = args.library().unwrap_or_else(||
-                    panic!("can't find lean; use the -L switch to say where the lean root is"));
                 let mut lib1 = lib.clone(); lib1.push("library"); res.push((lib1,true));
                 let mut lib2 = lib.clone(); lib2.push("lib"); lib2.push("lean"); lib2.push("library"); res.push((lib2,true));
             }

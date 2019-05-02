@@ -5,6 +5,7 @@ mod args;
 mod leanpath;
 mod loader;
 mod tokens;
+mod lint;
 mod lexer;
 mod rough_parser;
 mod union_find;
@@ -18,13 +19,17 @@ use std::ffi::{OsString};
 
 use self::args::*;
 use self::leanpath::LeanPath;
+use self::lint::*;
 use self::loader::Loader;
 use self::tokens::TokenTable;
 use self::rough_parser::RoughParser;
+use self::leanpath::{path_to_name};
+// use self::types::{path_to_name};
 use walkdir::WalkDir;
 // use crate::leanpath;
 
 #[macro_use] extern crate num_derive;
+#[macro_use] extern crate serde_derive;
 extern crate getopts;
 extern crate endian_type;
 extern crate nibble_vec;
@@ -42,30 +47,25 @@ fn main() -> io::Result<()> {
             }
         },
         Action::Dependents(file) => {
-            let lp = LeanPath::new(&args)?;
+            let lp = LeanPath::new_with_args(&args)?;
             let name = leanpath::path_to_name(&lp, file.as_path()).expect(format!("cannot resolve path: {:?}", file).as_str());
             let mut load = Loader::new(lp);
             load.load(name.clone())?;
             for s in load.order { println!("{}", s) }
         },
         Action::Unused(file) => {
-            let lp = LeanPath::new(&args)?;
-            let name = leanpath::path_to_name(&lp, file.as_path()).expect(format!("cannot resolve path: {:?}", file).as_str());
+            let lp = LeanPath::new_with_args(&args)?;
+            let name = path_to_name(&lp, file.as_path())
+                .expect(format!("cannot resolve path: {:?}", file).as_str());
             let mut load = Loader::new(lp);
-            load.load(name.clone())?;
-            // println!("* order");
-            // for s in &load.order { println!("{}", s) }
-            let x = load.unused_imports(&name);
-            if !x.is_empty() {
-                println!("\n\n* unused imports for {:?}", name);
-                for s in &x {
-                    let xs : Vec<String> = s.iter().map(|x| format!("{:?}", x)).collect();
-                    println!("{}",  xs.join(", ")) };
-                println!("\n");
-                ::std::process::exit(-1) }
+            check_unused_imports(&name,&mut load)?;
         },
+        // Action::Lint(file) => {
+        //     let lp = LeanPath::new_with_args(&args)?;
+        //     run_checkers(file,lp)?;
+        // },
         Action::Clique(file) => {
-            let lp = LeanPath::new(&args)?;
+            let lp = LeanPath::new_with_args(&args)?;
             let name = leanpath::path_to_name(&lp, file.as_path()).expect(format!("cannot resolve path: {:?}", file).as_str());
             let mut load = Loader::new(lp);
             load.load(name.clone())?;
@@ -81,7 +81,7 @@ fn main() -> io::Result<()> {
         },
         Action::Makefile => {
             use leanpath::path_to_name_inner;
-            let lp = LeanPath::new(&args)?;
+            let lp = LeanPath::new_with_args(&args)?;
             let mut load = Loader::new(lp.clone());
             let mut file = File::create("Makefile")?;
             file.write( "%.olean: %.lean\n".as_bytes() )?;
@@ -135,21 +135,21 @@ fn main() -> io::Result<()> {
                 src_str[i] = String::from(root.to_string_lossy()) }
             file.write(format!("unused: {}\n", src_str.join(" ")).as_bytes())?;
         },
-        Action::Lex(name) => {
-            let lp = LeanPath::new(&args)?;
-            let mut load = Loader::new(lp.clone());
-            load.load(name.clone())?;
-            let n2 = load.order.pop().unwrap();
-            let mut table = TokenTable::new();
-            table.load(&mut load)?;
-            let path = lp.find(n2, "lean").unwrap().1;
-            let lex = lexer::from_file(&path, table)?;
-            for tk in lex {
-                println!("{:?}", tk?)
-            }
-        },
+        // Action::Lex(name) => {
+        //     let lp = LeanPath::new(&args)?;
+        //     let mut load = Loader::new(lp.clone());
+        //     load.load(name.clone())?;
+        //     let n2 = load.order.pop().unwrap();
+        //     let mut table = TokenTable::new();
+        //     table.load(&mut load)?;
+        //     let path = lp.find(n2, "lean").unwrap().1;
+        //     let lex = lexer::from_file(&path, table)?;
+        //     for tk in lex {
+        //         println!("{:?}", tk?)
+        //     }
+        // },
         Action::Test(name) => {
-            let lp = LeanPath::new(&args)?;
+            let lp = LeanPath::new_with_args(&args)?;
             let path = lp.find(name.clone(), "lean").unwrap().1;
             let mut load = Loader::new(lp);
             let lexer = lexer::from_file(&path, TokenTable::new())?;
