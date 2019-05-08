@@ -189,7 +189,7 @@ impl Loader {
         self.unused_imports_acc(n,&s,&mut path,&mut result);
         result }
 
-    fn find_replacement(&mut self, n : &Name, s : &BTreeSet<Name>, rep : &mut Vec<Name>) -> Vec<Name> {
+    fn find_replacement(&mut self, n : &Name, s : &BTreeSet<Name>, rep : &mut BTreeSet<Name>) -> BTreeSet<Name> {
         let tactic : Name = name![tactic];
         let msg = format!("unknown module 3 {:?}", n);
         let (ol,_) = self.map.get(&n).expect(msg.as_str());
@@ -199,16 +199,16 @@ impl Loader {
             if *m != name![init] {
                 let def_name = m.clone().str("default".to_string());
                 if m.drop_prefix() == name![default] {
-                    let mut rep2 = Vec::new();
+                    let mut rep2 = BTreeSet::new();
                     let mut ms = self.find_replacement(&m, s, &mut rep2);
                     if ms == rep2 {
-                        rep.push(m.clone())
+                        rep.insert(m.clone());
                     } else { rep.append(&mut ms) }
                 } else if self.map.contains_key(&def_name) {
-                    let mut rep2 = Vec::new();
+                    let mut rep2 = BTreeSet::new();
                     let mut ms = self.find_replacement(&def_name, s, &mut rep2);
                     if ms == rep2 {
-                        rep.push(m.clone())
+                        rep.insert(m.clone());
                     } else { rep.append(&mut ms) }
                 } else {
                     let syms : BTreeSet<Name> = self.exported_syms(&m);
@@ -219,9 +219,9 @@ impl Loader {
                         // result.push(Advice { module : path.iter().cloned().collect(),
                         //                      replacement : rep });
                     } else {
-                        rep.push(m.clone())
+                        rep.insert(m.clone());
                     } } } }
-        imps
+        imps.iter().cloned().collect()
     }
 
     fn unused_imports_acc(&mut self, n : &Name, s : &BTreeSet<Name>, path : &mut LinkedList<Name>, result : &mut Vec<Advice>) {
@@ -241,11 +241,11 @@ impl Loader {
                     self.unused_imports_acc(&def_name, s, path, result)
                 } else {
                     if syms.is_disjoint(&s) && !syms.iter().any(|n| tactic.is_prefix_of(&n)) {
-                        let mut rep: Vec<Name> = Vec::new();
+                        let mut rep: BTreeSet<Name> = BTreeSet::new();
                         self.find_replacement(&m,s,&mut rep);
-                        rep.sort(); rep.dedup();
+                        // rep.sort(); rep.dedup();
                         result.push(Advice { module : path.iter().cloned().collect(),
-                                             replacement : rep });
+                                             replacement : rep.iter().cloned().collect() });
                     }
                     // else { println!("- <skip>") }
                 }

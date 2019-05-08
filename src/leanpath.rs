@@ -15,8 +15,13 @@ fn get_leanpkg_path_file() -> Option<PathBuf> {
         path = path.parent()?
     }
 }
+
+#[derive(Clone,Debug)]
+pub enum DirScope {
+    Project, Library }
+
 #[derive(Clone)]
-pub struct LeanPath(pub Vec<(PathBuf,bool)>);
+pub struct LeanPath(pub Vec<(PathBuf,DirScope)>);
 
 pub fn name_to_path(n: &Name2) -> Option<PathBuf> {
     match n {
@@ -64,13 +69,20 @@ impl LeanPath {
         let path = get_leanpkg_path_file().unwrap_or_else(||
             panic!("can't find leanpkg.path; make sure you are in a lean project"));
         let mut res = Vec::new();
+        let parent = path.parent().unwrap();
+        res.push((parent.join("test"),DirScope::Project));
         for l in BufReader::new(File::open(&path)?).lines() {
             let l = l?;
             if l.starts_with("path ") {
-                res.push((path.parent().unwrap().join(&l[5..]),false));
+                let path = String::from( &l[5..] );
+                if path.starts_with("_target") {
+                    res.push((parent.join(&path),DirScope::Library));
+                } else  {
+                    res.push((parent.join(&path),DirScope::Project));
+                }
             } else if l == "builtin_path" {
-                let mut lib1 = lib.clone(); lib1.push("library"); res.push((lib1,true));
-                let mut lib2 = lib.clone(); lib2.push("lib"); lib2.push("lean"); lib2.push("library"); res.push((lib2,true));
+                let mut lib1 = lib.clone(); lib1.push("library"); res.push((lib1,DirScope::Library));
+                let mut lib2 = lib.clone(); lib2.push("lib"); lib2.push("lean"); lib2.push("library"); res.push((lib2,DirScope::Library));
             }
         }
         Ok(LeanPath(res))
@@ -84,8 +96,8 @@ impl LeanPath {
     }
 
     pub fn make_local(&self, p: &Path) -> Option<PathBuf> {
-        for (ref dir,builtin) in &self.0 {
-            if !builtin {
+        for (ref dir,scope) in &self.0 {
+            if let DirScope::Project = scope {
                 if let Some(fp) = make_relative(dir,p) {
                     return Some(fp) } } }
         None

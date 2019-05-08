@@ -18,7 +18,7 @@ use std::fs::File;
 use std::ffi::{OsString};
 
 use self::args::*;
-use self::leanpath::LeanPath;
+use self::leanpath::{LeanPath,DirScope};
 use self::lint::*;
 use self::loader::Loader;
 use self::tokens::TokenTable;
@@ -104,9 +104,9 @@ fn main() -> io::Result<()> {
 
             let mut src : Vec<PathBuf> = Vec::new();
             let mut src_str : Vec<String> = Vec::new();
-            for (dir,builtin) in lp.0.clone() {
+            for (dir,scope) in lp.0.clone() {
                 let dir = dir.as_path();
-                if !builtin {
+                if let DirScope::Project = scope {
                     for fp in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
                         let emp = OsString::from("");
                         let path = fp.path();
