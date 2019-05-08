@@ -1,12 +1,13 @@
 use std::rc::Rc;
+use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 use num::bigint::BigInt;
 
-#[derive(PartialEq, Eq, Hash, Clone)] pub struct Name(Rc<Name2>);
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)] pub struct Name(Rc<Name2>);
 
-#[derive(PartialEq, Eq, Hash)] pub enum Name2 {
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)] pub enum Name2 {
     Anon,
     Str(Name, String),
     Num(Name, u32)
@@ -39,6 +40,24 @@ impl Name {
     pub fn parent(&self) -> Name { self.0.parent() }
     pub fn str(self, s: String) -> Name { Name::new(Name2::Str(self, s)) }
     pub fn num(self, s: u32) -> Name { Name::new(Name2::Num(self, s)) }
+    pub fn drop_prefix(&self) -> Name {
+        match self.deref() {
+            Name2::Anon => Name::anon(),
+            Name2::Str(_, s) => Name::anon().str(s.clone()),
+            Name2::Num(_, s) => Name::anon().num(*s)
+        }
+    }
+    pub fn components(&self) -> Vec<String> {
+        match self.deref() {
+            Name2::Anon => Vec::new(),
+            Name2::Str(n, s) => { let mut v = n.components(); v.push(s.clone()); v },
+            Name2::Num(n, s) => { let mut v = n.components(); v.push(s.to_string()); v } } }
+
+    pub fn is_prefix_of(&self, other : &Name) -> bool {
+        let c1 = self.components();
+        let c2 = other.components();
+        let b = (c1.iter()).zip(c2.iter()).all(|x| x.0 == x.1);
+        b && c1.len() <= c2.len() }
 
     pub fn append(self, other: &Name2) -> Name {
         match other {
@@ -140,6 +159,43 @@ pub type Expr = Rc<Expr2>;
     Let(Name, Expr, Expr, Expr),
     Macro(MacroDef, Vec<Expr>)
 }
+
+fn pi_head(e : &Expr) -> Expr {
+    use Expr2::*;
+    match e.deref() {
+        Pi(_,_,_,e) => pi_head(e),
+        _ => e.clone() } }
+
+fn is_app_of(n : &Name, e : &Expr) -> bool {
+    use Expr2::*;
+    match e.deref() {
+        App(e0, _e1) => is_app_of(n, e0),
+        Const(c,_) => c == n,
+        _ => false
+    }
+}
+
+pub fn is_tactic_type(e : &Expr) -> bool {
+    is_app_of(&name![tactic], &pi_head(e)) }
+
+fn list_consts_acc (e : &Expr, s : &mut BTreeSet<Name>) {
+    match e.deref() {
+        Expr2::Var(_) => { }
+        Expr2::Sort(_) => { }
+        Expr2::Const(n,_) => { s.insert(n.clone()); }
+        Expr2::MVar(_,_,e) => { list_consts_acc(e, s) }
+        Expr2::Local(_,_,_,e) => { list_consts_acc(e, s) }
+        Expr2::App(e0,e1) => { list_consts_acc(e0, s); list_consts_acc(e1, s) }
+        Expr2::Lam(_,_,e0,e1) => { list_consts_acc(e0, s); list_consts_acc(e1, s) }
+        Expr2::Pi(_,_,e0,e1) => { list_consts_acc(e0, s); list_consts_acc(e1, s) }
+        Expr2::Let(_,e0,e1,e2) => { list_consts_acc(e0, s); list_consts_acc(e1, s); list_consts_acc(e2, s) }
+        Expr2::Macro(_,es) => { for e in es { list_consts_acc(e,s) } }
+    }
+}
+
+// fn list_consts (e : &Expr) -> BTreeSet<Name> {
+//     let mut s = BTreeSet::new();
+//     list_consts_acc(e,&mut s); s }
 
 #[derive(Debug)] pub struct EquationsHeader {
     pub num_fns: u32,
@@ -247,6 +303,29 @@ impl Debug for ModuleName {
     Ax{name: Name, ps: Vec<Name>, ty: Expr}
 }
 
+impl Declaration {
+    pub fn name (&self) -> Name {
+        match &self {
+            Declaration::Defn { name: n, ps: _, ty: _, val: _, hints: _, is_trusted: _ } => n.clone(),
+            Declaration::Thm  { name: n, ps: _, ty: _, val: _ } => n.clone(),
+            Declaration::Cnst { name: n, ps: _, ty: _, is_trusted: _ } => n.clone(),
+            Declaration::Ax   { name: n, ps: _, ty: _ } => n.clone()
+        } }
+    pub fn ref_symbols_acc(&self, set : &mut BTreeSet<Name>) {
+        match &self {
+            Declaration::Defn { name: _, ps: _, ty: t, val: e, hints: _, is_trusted: _ } =>
+            { list_consts_acc(t,set); list_consts_acc(e,set); },
+            Declaration::Thm  { name: _, ps: _, ty: t, val: e } =>
+            { list_consts_acc(t,set); list_consts_acc(e,set); },
+            Declaration::Cnst { name: _, ps: _, ty: t, is_trusted: _ } => list_consts_acc(t,set),
+            Declaration::Ax   { name: _, ps: _, ty: t } => list_consts_acc(t,set)
+        } }
+    pub fn ref_symbols(&self) -> BTreeSet<Name> {
+        let mut r = BTreeSet::new();
+        self.ref_symbols_acc(&mut r);
+        r }
+}
+
 #[derive(Debug)] pub struct PosInfo { pub line: u32, pub col: u32 }
 
 #[derive(Debug, FromPrimitive)]
@@ -272,6 +351,16 @@ pub enum ElabStrategy { Simple, WithExpectedType, AsEliminator }
     pub record: AttrRecord
 }
 
+impl AttrEntry {
+    pub fn names(&self) -> Vec<Name> {
+        let mut result = Vec::new();
+        result.push( self.record.0.clone() );
+        // result.push( self.attr.clone() );
+        // if let Some(AttrData::User(e)) = &self.record.1
+        // { for x in list_consts(&e) {
+        //     result.push(x) } }
+        result } }
+
 #[derive(Debug)] pub struct InductiveDecl {
     pub name: Name,
     pub level_params: Vec<Name>,
@@ -296,6 +385,11 @@ pub enum ElabStrategy { Simple, WithExpectedType, AsEliminator }
     pub num_indices: u32,
     pub is_trusted: bool,
     pub comp_rules: Vec<CompRule>
+}
+
+impl InductiveDefn {
+    pub fn name(&self) -> Name {
+        self.decl.name.clone() }
 }
 
 #[derive(Debug, FromPrimitive)]
@@ -361,9 +455,17 @@ pub enum GInductiveKind { Basic, Mutual, Nested }
 
 #[derive(Debug)] pub enum ClassEntry {
     Class(Name),
-    Instance(Name, Name, u32),
-    Tracker(Name, Name),
+    Instance { class: Name, instance: Name, prio: u32 },
+    Tracker{ class: Name, track_attr: Name },
 }
+
+impl ClassEntry {
+    pub fn name(&self) -> Name {
+        match self {
+            ClassEntry::Class(n) => n.clone(),
+            ClassEntry::Instance{ instance: n, .. } => n.clone(),
+            ClassEntry::Tracker{ track_attr: n, .. } => n.clone()
+        } } }
 
 #[derive(Debug)] pub struct ProjectionInfo {
     pub constr: Name,
@@ -494,4 +596,15 @@ impl fmt::Display for OLean {
         writeln!(f, "uses sorry: {}", self.uses_sorry)?;
         writeln!(f, "imports: {:?}", self.imports)
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::types::*;
+    #[test]
+    fn my_type() {
+        println!("tactic: {:?}", name![tactic].components());
+        println!("tactic.interactive: {:?}", name![tactic.interactive].components());
+        assert!(name![tactic].is_prefix_of(&name![tactic.interactive]),"Name::is_prefix_of") }
 }

@@ -5,7 +5,6 @@ use std::ops::Deref;
 use crate::lexer::{Lexer, Token};
 use crate::lexer::Token::*;
 use crate::loader::Loader;
-use crate::leanpath::LeanPath;
 use crate::types::*;
 
 fn invalid(s: &str) -> io::Error { io::Error::new(io::ErrorKind::InvalidData, s) }
@@ -208,9 +207,9 @@ impl<T: io::Read> RoughParser<T> {
         }
     }
 
-    pub fn parse_lean(&mut self, load: &mut Loader, lp: &LeanPath, name: Name) -> io::Result<RoughLean> {
+    pub fn parse_lean(&mut self, load: &mut Loader, name: Name) -> io::Result<RoughLean> {
         let mut rl = RoughLean::new(name.clone(), self.parse_imports()?);
-        for m in &rl.imports { load.load(lp, m.resolve(name.clone()))? }
+        for m in &rl.imports { load.load(m.resolve(name.clone()))? }
         self.lexer.token_table.load(load)?;
         rl.cmds = self.parse_cmds(CmdEnd::Eof)?;
         rl.doc = mem::replace(&mut self.mdoc, Vec::new());
